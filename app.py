@@ -1,8 +1,7 @@
-from flask import render_template, request, redirect, session, send_file
 from datetime import datetime
-import io
+
 from flask import Flask
-from xhtml2pdf import pisa
+from flask import redirect, session
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # For session
@@ -78,21 +77,31 @@ def logout():
     session.clear()
     return redirect('/')
 
+from flask import request, render_template, send_file
+from xhtml2pdf import pisa
+import io, json
+
 @app.route('/report', methods=['POST'])
 def report():
-    import json
-    from flask import make_response
     data = json.loads(request.form['data'])
-    html = render_template("report_template.html", results=data)
+    chart_img = request.form.get('chart')  # base64 string
 
+    # Render HTML with chart and results
+    html = render_template("report_template.html", results=data, chart_img=chart_img)
+
+    # Create PDF
     pdf = io.BytesIO()
     pisa_status = pisa.CreatePDF(html, dest=pdf)
     pdf.seek(0)
 
-    response = make_response(pdf.read())
-    response.headers["Content-Disposition"] = "attachment; filename=report.pdf"
-    response.headers["Content-Type"] = "application/pdf"
-    return response
+    # Return as downloadable file
+    return send_file(
+        pdf,
+        mimetype="application/pdf",
+        download_name="report.pdf",
+        as_attachment=True
+    )
+
 
 if __name__ == '__main__':
     app.run()

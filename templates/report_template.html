@@ -7,10 +7,16 @@
     body { font-family: Arial, sans-serif; padding: 30px; }
     h1 { color: #333; }
     .post { margin-bottom: 20px; }
+    img.chart { width: 100%; max-width: 700px; margin: 30px 0; }
   </style>
 </head>
 <body>
   <h1>InsightHub Report</h1>
+
+  {% if chart_img %}
+    <img src="{{ chart_img }}" alt="Engagement Chart" class="chart">
+  {% endif %}
+
   {% for post in results %}
     <div class="post">
       <h2>{{ post.title }} ({{ post.date }})</h2>

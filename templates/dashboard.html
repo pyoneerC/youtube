@@ -69,15 +69,56 @@
         </li>
       {% endfor %}
     </ul>
-
-    <form action="/report" method="POST">
-      <input type="hidden" name="data" value='{{ results|tojson|safe }}'>
-      <button class="mt-6 px-6 py-3 rounded-full bg-green-600 text-white font-bold hover:bg-green-700 transition">
-        Generate PDF Report
-      </button>
-    </form>
   </div>
 {% endif %}
+
+<div id="engagementChart" style="width: 600px; height: 400px;" class="mx-auto my-10"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+  const results = {{ results|tojson|safe }};
+
+  const chart = echarts.init(document.getElementById('engagementChart'));
+  const option = {
+    title: {
+      text: 'Post Engagements',
+      left: 'center'
+    },
+    tooltip: {},
+    xAxis: {
+      type: 'category',
+      data: results.map(r => r.title)
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Engagement %'
+    },
+    series: [{
+      name: 'Engagement',
+      type: 'bar',
+      data: results.map(r => r.engagement),
+      itemStyle: { borderRadius: [5, 5, 0, 0] }
+    }]
+  };
+
+  chart.setOption(option);
+
+  // Convert chart to image for PDF (base64)
+  setTimeout(() => {
+    const image = chart.getDataURL();
+    document.getElementById('chartImage').value = image;
+  }, 1000);
+</script>
+
+<!-- Hidden input to store chart image -->
+<form action="/report" method="POST">
+  <input type="hidden" name="data" value='{{ results|tojson|safe }}'>
+  <input type="hidden" name="chart" id="chartImage">
+  <button class="mt-6 px-6 py-3 rounded-full bg-green-600 text-white font-bold hover:bg-green-700 transition">
+    Generate PDF Report
+  </button>
+</form>
+
 
 </body>
 </html>
