@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InsightHub Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: radial-gradient(circle, #777 0%, #000 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-white flex flex-col items-center justify-center gap-12 px-4 py-8">
+
+  <h1 class="text-4xl font-bold text-gray-200">Welcome, {{ user }}!</h1>
+
+  <form method="POST" action="/analyze" class="flex flex-col sm:flex-row gap-6 items-center">
+    <!-- Search -->
+    <input
+      type="text"
+      name="search"
+      placeholder="Search"
+      class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-64"
+    />
+
+    <!-- Channel Select -->
+    <select
+      name="channel"
+      class="px-4 py-3 rounded-2xl bg-gray-800 text-white w-64 focus:outline-none"
+      required
+    >
+      <option disabled selected>Select Channel</option>
+      <option value="tiktok">TikTok</option>
+      <option value="youtube">YouTube</option>
+    </select>
+
+    <!-- Submit -->
+    <button
+      type="submit"
+      class="px-6 py-3 rounded-full bg-gray-900 text-white font-bold hover:bg-gray-700 transition"
+    >
+      Enter
+    </button>
+  </form>
+
+</body>
+</html>
