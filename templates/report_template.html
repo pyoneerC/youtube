@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 30px; }
+    h1 { color: #333; }
+    .post { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>InsightHub Report</h1>
+  {% for post in results %}
+    <div class="post">
+      <h2>{{ post.title }} ({{ post.date }})</h2>
+      <p><strong>Engagement:</strong> {{ post.engagement }}%</p>
+      <ul>
+        {% for c in post.comments %}
+          <li>{{ c.text }} ({{ c.type }})</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+</body>
+</html>
