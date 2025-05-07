@@ -18,7 +18,7 @@
 </head>
 <body class="h-screen flex items-center justify-center text-white antialiased">
 <div class="text-center w-full max-w-md px-6">
-    <img src="../static/logo.png" alt="Logo" class="w-32 h-32 mb-8" />
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="w-32 h-32 mb-8 mx-auto" />
     <h1 class="text-5xl font-extrabold text-gray-200 mb-12">InsightHub</h1>
 
     {% if error %}
