@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, redirect, session
+import browser_use
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # For session
@@ -32,7 +33,11 @@ def dashboard():
 def analyze():
     keyword = request.form['search']
     channel = request.form['channel']
-    # Do something with keyword and channel...
+
+    if 'user' not in session:
+        return redirect('/')
+    if not keyword or not channel:
+        return render_template('dashboard.html', user=session['user'], error="Please provide both keyword and channel")
     return render_template('dashboard.html', user=session['user'])
 
 @app.route('/logout')
