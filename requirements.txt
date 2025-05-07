@@ -1,1 +1,2 @@
 xhtml2pdf~=0.2.17
+gunicorn~=20.1.0
