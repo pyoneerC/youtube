@@ -29,7 +29,7 @@ def login():
 def dashboard():
     if 'user' not in session:
         return redirect('/')
-    return render_template('dashboard.html', user=session['user'])
+    return render_template('dashboard.html', user=session['user'], results=[])
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
