@@ -13,20 +13,7 @@
 </head>
 <body class="min-h-screen text-white flex flex-col items-center justify-center gap-12 px-4 py-8">
 
-  <div class="flex justify-between items-center w-full max-w-4xl mx-auto mb-8">
-    <h1 class="text-4xl font-bold text-gray-200">Welcome, {{ user }}!</h1>
-    <a href="/logout" class="px-4 py-2 rounded-full bg-red-600 text-white font-bold hover:bg-red-700 transition">
-      Logout
-    </a>
-  </div>
-
-  {% if error %}
-    <div class="w-full max-w-4xl mx-auto mb-6">
-      <div class="bg-red-500/20 text-red-400 p-4 rounded-lg border border-red-500/50" role="alert">
-        {{ error }}
-      </div>
-    </div>
-  {% endif %}
+  <h1 class="text-4xl font-bold text-gray-200">Welcome, {{ user }}!</h1>
 
   <!-- Existing Analyze Form -->
   <form method="POST" action="/analyze" class="flex flex-col sm:flex-row gap-6 items-center w-full max-w-4xl justify-center p-4 bg-gray-900 rounded-lg shadow-lg">
@@ -145,7 +132,7 @@
       title: {
         text: 'Post Engagements',
         left: 'center',
-        textStyle: { color: '#e2e8f0' }
+        textStyle: { color: '#e2e8f0' } // Tailwind gray-200
       },
       tooltip: {},
       xAxis: {
