@@ -1,0 +1,51 @@
+<!-- New Social Media Check Form -->
+<form method="POST" action="/check_social" class="flex flex-col sm:flex-row gap-6 items-center w-full max-w-4xl justify-center p-4 bg-gray-900 rounded-lg shadow-lg mt-8">
+  <h2 class="text-xl font-semibold w-full text-center sm:w-auto">Social Media Profile Check</h2>
+  <input
+    type="text"
+    name="social_username"
+    placeholder="Enter Username"
+    class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-full sm:w-64"
+    required
+  />
+  <button
+    type="submit"
+    class="px-6 py-3 rounded-full bg-purple-600 text-white font-bold hover:bg-purple-700 transition w-full sm:w-auto"
+  >
+    Check Profiles
+  </button>
+</form>
+
+{% if social_media_results %}
+  <div class="mt-12 w-full max-w-3xl space-y-6">
+    <h2 class="text-2xl font-bold text-gray-200">
+      Social Media Check Results for '{{ checked_username }}'
+    </h2>
+    <table class="w-full text-left table-auto border-collapse">
+      <thead>
+        <tr class="bg-gray-700">
+          <th class="px-4 py-2 border border-gray-600">Platform</th>
+          <th class="px-4 py-2 border border-gray-600">Status</th>
+          <th class="px-4 py-2 border border-gray-600">URL / Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in social_media_results %}
+          <tr class="{% if loop.index % 2 == 0 %}bg-gray-800{% else %}bg-gray-700{% endif %}">
+            <td class="px-4 py-2 border border-gray-600">{{ row.platform }}</td>
+            <td class="px-4 py-2 border border-gray-600 {% if row.status_color == 'green' %}text-green-400{% else %}text-red-400{% endif %}">
+              {{ row.status }}
+            </td>
+            <td class="px-4 py-2 border border-gray-600">
+              {% if row.status == 'Real Profile' %}
+                <a href="{{ row.url_display }}" target="_blank" class="text-blue-400 hover:underline break-all">{{ row.url_display }}</a>
+              {% else %}
+                {{ row.reason }}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}

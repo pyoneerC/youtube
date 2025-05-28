@@ -15,37 +15,49 @@
 
   <h1 class="text-4xl font-bold text-gray-200">Welcome, {{ user }}!</h1>
 
-  <form method="POST" action="/analyze" class="flex flex-col sm:flex-row gap-6 items-center">
-    <!-- Search -->
+  <!-- Existing Analyze Form -->
+  <form method="POST" action="/analyze" class="flex flex-col sm:flex-row gap-6 items-center w-full max-w-4xl justify-center p-4 bg-gray-900 rounded-lg shadow-lg">
+    <h2 class="text-xl font-semibold w-full text-center sm:w-auto">Content Analysis</h2>
     <input
       type="text"
       name="search"
-      placeholder="Search"
-      class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-64"
+      placeholder="Search Keyword"
+      class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-full sm:w-64"
     />
-
-    <!-- Channel Select -->
     <select
       name="channel"
-      class="px-4 py-3 rounded-2xl bg-gray-800 text-white w-64 focus:outline-none"
+      class="px-4 py-3 rounded-2xl bg-gray-800 text-white w-full sm:w-64 focus:outline-none"
       required
     >
       <option disabled selected>Select Channel</option>
       <option value="tiktok">TikTok</option>
       <option value="youtube">YouTube</option>
     </select>
-
-        <!-- Date Range -->
-  <input type="date" name="start_date" class="px-4 py-3 rounded-xl bg-gray-800 text-white w-48 focus:outline-none" required>
-  <input type="date" name="end_date" class="px-4 py-3 rounded-xl bg-gray-800 text-white w-48 focus:outline-none" required>
-
-
-    <!-- Submit -->
+    <input type="date" name="start_date" class="px-4 py-3 rounded-xl bg-gray-800 text-white w-full sm:w-48 focus:outline-none" required>
+    <input type="date" name="end_date" class="px-4 py-3 rounded-xl bg-gray-800 text-white w-full sm:w-48 focus:outline-none" required>
     <button
       type="submit"
-      class="px-6 py-3 rounded-full bg-gray-900 text-white font-bold hover:bg-gray-700 transition"
+      class="px-6 py-3 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition w-full sm:w-auto"
     >
-      Enter
+      Analyze
+    </button>
+  </form>
+
+  <!-- New Social Media Check Form -->
+  <form method="POST" action="/check_social" class="flex flex-col sm:flex-row gap-6 items-center w-full max-w-4xl justify-center p-4 bg-gray-900 rounded-lg shadow-lg mt-8">
+    <h2 class="text-xl font-semibold w-full text-center sm:w-auto">Social Media Profile Check</h2>
+    <input
+      type="text"
+      name="social_username"
+      placeholder="Enter Username"
+      class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-full sm:w-64"
+      required
+    />
+    <button
+      type="submit"
+      class="px-6 py-3 rounded-full bg-purple-600 text-white font-bold hover:bg-purple-700 transition w-full sm:w-auto"
+    >
+      Check Profiles
     </button>
   </form>
 
@@ -72,53 +84,102 @@
   </div>
 {% endif %}
 
+{% if social_media_results %}
+  <div class="mt-12 w-full max-w-3xl space-y-6">
+    <h2 class="text-2xl font-bold text-gray-200">
+      Social Media Check Results for '{{ checked_username }}'
+    </h2>
+    <table class="w-full text-left table-auto border-collapse">
+      <thead>
+        <tr class="bg-gray-700">
+          <th class="px-4 py-2 border border-gray-600">Platform</th>
+          <th class="px-4 py-2 border border-gray-600">Status</th>
+          <th class="px-4 py-2 border border-gray-600">URL / Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in social_media_results %}
+          <tr class="{% if loop.index % 2 == 0 %}bg-gray-800{% else %}bg-gray-700{% endif %}">
+            <td class="px-4 py-2 border border-gray-600">{{ row.platform }}</td>
+            <td class="px-4 py-2 border border-gray-600 {% if row.status_color == 'green' %}text-green-400{% else %}text-red-400{% endif %}">
+              {{ row.status }}
+            </td>
+            <td class="px-4 py-2 border border-gray-600">
+              {% if row.status == 'Real Profile' %}
+                <a href="{{ row.url_display }}" target="_blank" class="text-blue-400 hover:underline break-all">{{ row.url_display }}</a>
+              {% else %}
+                {{ row.reason }}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+
 <div id="engagementChart" style="width: 600px; height: 400px;" class="mx-auto my-10"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <script>
-  const results = {{ results|tojson|safe }};
+  // Only initialize chart if results data is available
+  const results = {{ results|tojson|safe }}; // This comes from analyze route
 
-  const chart = echarts.init(document.getElementById('engagementChart'));
-  const option = {
-    title: {
-      text: 'Post Engagements',
-      left: 'center'
-    },
-    tooltip: {},
-    xAxis: {
-      type: 'category',
-      data: results.map(r => r.title)
-    },
-    yAxis: {
-      type: 'value',
-      name: 'Engagement %'
-    },
-    series: [{
-      name: 'Engagement',
-      type: 'bar',
-      data: results.map(r => r.engagement),
-      itemStyle: { borderRadius: [5, 5, 0, 0] }
-    }]
-  };
+  if (results && results.length > 0) {
+    const chart = echarts.init(document.getElementById('engagementChart'));
+    const option = {
+      title: {
+        text: 'Post Engagements',
+        left: 'center',
+        textStyle: { color: '#e2e8f0' } // Tailwind gray-200
+      },
+      tooltip: {},
+      xAxis: {
+        type: 'category',
+        data: results.map(r => r.title),
+        axisLabel: { color: '#cbd5e1' } // Tailwind gray-300
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Engagement %',
+        nameTextStyle: { color: '#cbd5e1' },
+        axisLabel: { color: '#cbd5e1' }
+      },
+      series: [{
+        name: 'Engagement',
+        type: 'bar',
+        data: results.map(r => r.engagement),
+        itemStyle: {
+          borderRadius: [5, 5, 0, 0],
+          color: '#3b82f6' // Tailwind blue-500
+        }
+      }]
+    };
+    chart.setOption(option);
 
-  chart.setOption(option);
-
-  // Convert chart to image for PDF (base64)
-  setTimeout(() => {
-    const image = chart.getDataURL();
-    document.getElementById('chartImage').value = image;
-  }, 1000);
+    // Convert chart to image for PDF (base64)
+    setTimeout(() => {
+      const image = chart.getDataURL({
+        pixelRatio: 2, // Improve image quality for PDF
+        backgroundColor: '#1f2937' // Match chart background to overall body bg
+      });
+      document.getElementById('chartImage').value = image;
+    }, 1000);
+  } else {
+    // Hide chart if no results
+    document.getElementById('engagementChart').style.display = 'none';
+  }
 </script>
 
 <!-- Hidden input to store chart image -->
-<form action="/report" method="POST">
+<form action="/report" method="POST" class="mt-6">
   <input type="hidden" name="data" value='{{ results|tojson|safe }}'>
   <input type="hidden" name="chart" id="chartImage">
-  <button class="mt-6 px-6 py-3 rounded-full bg-green-600 text-white font-bold hover:bg-green-700 transition">
+  <button class="px-6 py-3 rounded-full bg-green-600 text-white font-bold hover:bg-green-700 transition">
     Generate PDF Report
   </button>
 </form>
-
 
 </body>
 </html>

@@ -1,12 +1,226 @@
+import re
+import ssl
+import time
+import urllib.error
+import urllib.request
+import json
 from datetime import datetime
 
-from flask import Flask
-from flask import redirect, session
+from flask import Flask, redirect, session, request, render_template, send_file
+from xhtml2pdf import pisa
+import io
 
+# --- Flask App Setup ---
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # For session
+app.secret_key = 'supersecretkey'  # For session (CHANGE THIS IN PRODUCTION)
 
-# Hardcoded credentials
+# --- Social Media Checker Configuration & Dependencies ---
+# Ignore SSL errors - use only for development/testing, not production
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# HARDCODED API KEY AND MODEL AS REQUESTED
+GROQ_API_KEY = 'gsk_WVuGV4vOW4evfjNE7jlDWGdyb3FYTCLqeWU4v2CB351ckeugq1qwx'
+GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions'
+# User-specified model. VERIFY this model name is correct/accessible for your Groq account.
+# Public models often look like 'llama3-8b-8192' or 'mixtral-8x7b-32768'.
+GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
+
+# --- Social Media Checker Core Functions (Modified for Flask) ---
+
+def fetch_page_html(url):
+    """
+    Fetches HTML content and its HTTP status code from a given URL.
+    Returns (html_content, status_code) or (None, None) on significant error.
+    Attempts to read HTML even for HTTP error responses.
+    """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
+    req = urllib.request.Request(url, headers=headers)
+    html_content = None
+    status_code = None
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            status_code = response.getcode()
+            html_content = response.read().decode('utf-8', errors='ignore')
+            return html_content, status_code
+    except urllib.error.HTTPError as e:
+        app.logger.warning(f"HTTP Error for {url} — Status: {e.code} — {e.reason}")
+        status_code = e.code
+        try:
+            html_content = e.read().decode('utf-8', errors='ignore')
+        except Exception as read_err:
+            app.logger.error(f"Failed to read error page content for {url} — {read_err}")
+            html_content = None
+        return html_content, status_code
+    except urllib.error.URLError as e:
+        app.logger.error(f"URL Error for {url} — {e.reason}")
+        return None, None
+    except Exception as e:
+        app.logger.error(f"Failed to fetch {url} — {type(e).__name__}: {e}")
+        return None, None
+
+
+def clean_html_content(html_content):
+    """
+    Cleans HTML content by removing scripts, styles, etc., and extracts text.
+    Limits content size and standardizes whitespace.
+    """
+    if not html_content:
+        return ""
+
+    soup = BeautifulSoup(html_content, "html.parser")
+
+    for tag in soup(["script", "style", "nav", "footer", "header", "link", "svg", "img", "form", "iframe", "button", "input"]):
+        tag.decompose()
+
+    text = soup.get_text(separator=' ', strip=True)
+    text = re.sub(r'\s+', ' ', text)
+    return text[:4000]
+
+
+def call_groq_ai(prompt):
+    """
+    Calls the Groq AI API with a given prompt.
+    """
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 50,
+        "temperature": 0.0,
+        "top_p": 1,
+        "stop": ["\n", "User:", "Answer:"],
+    }
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {GROQ_API_KEY}'
+    }
+
+    req = urllib.request.Request(GROQ_ENDPOINT, data=json.dumps(payload).encode('utf-8'), headers=headers, method='POST')
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            response_json = json.loads(response.read().decode('utf-8'))
+            if response_json and response_json.get('choices'):
+                return response_json['choices'][0]['message']['content'].strip()
+            else:
+                app.logger.error(f"Groq API: No choices found in response: {response_json}")
+                return "AI Error: No response content"
+    except urllib.error.HTTPError as e:
+        error_message = e.read().decode('utf-8')
+        app.logger.error(f"Groq API HTTP Error ({e.code}): {error_message}")
+        return f"AI Error: HTTP {e.code} - {error_message}"
+    except urllib.error.URLError as e:
+        app.logger.error(f"Groq API URL Error: {e.reason}")
+        return f"AI Error: URL Error - {e.reason}"
+    except json.JSONDecodeError as e:
+        app.logger.error(f"Groq API JSON Decode Error: {e}")
+        return f"AI Error: JSON Decode - {e}"
+    except Exception as e:
+        app.logger.error(f"Groq API Unknown Error: {type(e).__name__}: {e}")
+        return f"AI Error: {str(e)}"
+
+
+def validate_profile_ai(html_content, status_code, url):
+    """
+    Validates a social media profile using AI.
+    If the status code is a clear error (404, 410, 403), constructs a specific prompt for the AI.
+    Otherwise, cleans HTML and sends it to the AI.
+    Returns (True/False, reason_string).
+    """
+    ai_input_text = ""
+    reason_prefix = "AI says: "
+
+    if status_code in (404, 410):
+        ai_input_text = f"The URL '{url}' returned an HTTP {status_code} Not Found/Gone error page. This indicates the profile likely does not exist or has been removed."
+        reason_prefix = f"HTTP {status_code} - "
+    elif status_code == 403:
+        ai_input_text = f"The URL '{url}' returned an HTTP {status_code} Forbidden error. This indicates access is denied, likely due to bot detection."
+        reason_prefix = f"HTTP {status_code} - "
+    elif not html_content:
+        ai_input_text = f"No content could be retrieved from the URL '{url}' due to a network or connection error."
+        reason_prefix = "Fetch Error - "
+    else:
+        ai_input_text = clean_html_content(html_content)
+        if not ai_input_text.strip():
+            ai_input_text = f"The page content from '{url}' was empty or contained no extractable text after cleaning."
+
+    prompt = f"""You are an AI that validates social media profiles.
+You will be given text content (which might be an error message or a webpage's actual content) and the URL.
+
+Your task is to determine if this page represents a REAL, PUBLIC USER PROFILE with actual user-generated content (e.g., posts, bio, profile picture, followers count).
+
+Respond `1` if it is a real public user profile.
+Respond `0` if it is any of the following:
+- A "Page Not Found" (404) or similar error page.
+- A "Forbidden" (403) or "Access Denied" page.
+- A login/signup wall or prompt.
+- A generic placeholder page without specific user content (e.g., "Account not found" page, or a minimal page for a username that doesn't exist).
+- A page indicating the account is suspended, banned, or private.
+- If the input text describes an HTTP error or a failure to fetch content, consider it `0`.
+
+Do not explain, just return 1 or 0.
+
+URL: {url}
+---
+CONTENT:
+{ai_input_text}
+---
+Answer:"""
+
+    response = call_groq_ai(prompt)
+    response_clean = response.strip()
+
+    if response_clean.startswith("1"):
+        return True, reason_prefix + "Real Profile"
+    elif response_clean.startswith("0"):
+        return False, reason_prefix + "Not Found / Fake / Generic"
+    else:
+        app.logger.warning(f"AI returned unexpected response for {url}: '{response}'")
+        return False, f"AI Inconclusive: '{response}'"
+
+
+def check_username_for_flask(username):
+    """
+    Checks the given username across various social media platforms.
+    Returns a list of dictionaries, suitable for Flask template rendering.
+    """
+    platforms = {
+        "Instagram": f"https://www.instagram.com/{username}/",
+        "TikTok": f"https://www.tiktok.com/@{username}",
+        "Twitter": f"https://twitter.com/{username}",
+        "YouTube": f"https://www.youtube.com/@{username}",
+        "Facebook": f"https://www.facebook.com/{username}"
+    }
+
+    results_for_display = []
+
+    for platform, url in platforms.items():
+        app.logger.info(f"Checking {platform} for {username}...")
+        html_content, status_code = fetch_page_html(url)
+
+        is_real, reason = validate_profile_ai(html_content, status_code, url)
+
+        row_data = {
+            "platform": platform,
+            "status": "Real Profile" if is_real else "Not Found / Fake",
+            "status_color": "green" if is_real else "red", # For Tailwind CSS styling
+            "url_display": url if is_real else "N/A", # Show URL if real, N/A if not
+            "reason": reason # Display the reason given by AI/logic
+        }
+        results_for_display.append(row_data)
+
+        time.sleep(2) # Be polite to social media sites and Groq API
+
+    return results_for_display
+
+
+# --- Flask Routes ---
+
 VALID_USER = 'eliberto'
 VALID_PASS = 'demo123'
 
@@ -29,7 +243,8 @@ def login():
 def dashboard():
     if 'user' not in session:
         return redirect('/')
-    return render_template('dashboard.html', user=session['user'], results=[])
+    # Initialize results lists to empty if not present in session for first load
+    return render_template('dashboard.html', user=session['user'], results=[], social_media_results=[])
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -38,17 +253,16 @@ def analyze():
 
     keyword = request.form['search']
     channel = request.form['channel']
-    start_date = request.form['start_date']
-    end_date = request.form['end_date']
+    start_date_str = request.form['start_date']
+    end_date_str = request.form['end_date']
 
-    # Parse dates
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
+    start = datetime.strptime(start_date_str, "%Y-%m-%d")
+    end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-    # 🔧 Mock posts and comments
+    # Mock posts and comments (keep this for existing functionality)
     posts = [
         {
-            'title': f'{channel} Post 1',
+            'title': f'{channel} Post 1 ({keyword})',
             'comments': [
                 {'text': 'Amazing!', 'type': 'positive'},
                 {'text': 'Could be better.', 'type': 'suggestion'}
@@ -57,44 +271,61 @@ def analyze():
             'engagement': 78
         },
         {
-            'title': f'{channel} Post 2',
+            'title': f'{channel} Post 2 ({keyword})',
             'comments': [
                 {'text': 'Bad experience.', 'type': 'negative'},
                 {'text': 'Great stuff!', 'type': 'positive'}
             ],
             'date': '2025-03-01',
             'engagement': 64
+        },
+        {
+            'title': f'{channel} Post 3 ({keyword})',
+            'comments': [
+                {'text': 'Neutral comment.', 'type': 'neutral'},
+                {'text': 'Loved it!', 'type': 'positive'}
+            ],
+            'date': '2025-02-10',
+            'engagement': 90
         }
     ]
 
-    # Filter by date
-    filtered = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
+    filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
 
-    return render_template('dashboard.html', user=session['user'], results=filtered, keyword=keyword, channel=channel, start=start_date, end=end_date)
+    return render_template('dashboard.html', user=session['user'], results=filtered_posts,
+                           keyword=keyword, channel=channel, start=start_date_str, end=end_date_str,
+                           social_media_results=[]) # Ensure social_media_results is empty for this type of search
+
+
+@app.route('/check_social', methods=['POST'])
+def check_social_route():
+    if 'user' not in session:
+        return redirect('/')
+
+    username_to_check = request.form['social_username']
+    social_media_results = check_username_for_flask(username_to_check)
+
+    return render_template('dashboard.html', user=session['user'], results=[], # Clear previous search results
+                           social_media_results=social_media_results,
+                           checked_username=username_to_check) # Pass username for display
+
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/')
 
-from flask import request, render_template, send_file
-from xhtml2pdf import pisa
-import io, json
-
 @app.route('/report', methods=['POST'])
 def report():
     data = json.loads(request.form['data'])
-    chart_img = request.form.get('chart')  # base64 string
+    chart_img = request.form.get('chart')
 
-    # Render HTML with chart and results
     html = render_template("report_template.html", results=data, chart_img=chart_img)
 
-    # Create PDF
     pdf = io.BytesIO()
     pisa_status = pisa.CreatePDF(html, dest=pdf)
     pdf.seek(0)
 
-    # Return as downloadable file
     return send_file(
         pdf,
         mimetype="application/pdf",
@@ -104,4 +335,6 @@ def report():
 
 
 if __name__ == '__main__':
-    app.run()
+    # Initialize BeautifulSoup here to prevent import error if it's the only place it's used
+    from bs4 import BeautifulSoup
+    app.run(debug=True) # Run in debug mode for development
