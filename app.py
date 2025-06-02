@@ -15,7 +15,8 @@ from bs4 import BeautifulSoup # Added missing import
 
 # --- Flask App Setup ---
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # For session (CHANGE THIS IN PRODUCTION)
+import os
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))  # More secure secret key
 
 # --- API Configuration ---
 YOUTUBE_API_KEY = 'AIzaSyA_pBApSdV9s5DjVyDh44mByJ5QYvkZzqg' # Consider moving to environment variables
@@ -28,6 +29,10 @@ ssl._create_default_https_context = ssl._create_unverified_context
 GROQ_API_KEY = 'gsk_WVuGV4vOW4evfjNE7jlDWGdyb3FYTCLqeWU4v2CB351ckeugq1qwx' # Consider moving to environment variables
 GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions'
 GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # --- Social Media Checker Core Functions (Modified for Flask) ---
 
@@ -223,6 +228,37 @@ def check_username_for_flask(username):
     return results_for_display
 
 
+# --- Rate Limiting Decorator ---
+
+# Rate limiting setup
+RATE_LIMIT = 10  # requests
+RATE_LIMIT_PERIOD = 300  # seconds (5 minutes)
+rate_limit_data = {}
+
+def rate_limit(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        now = datetime.now()
+        ip = request.remote_addr
+        
+        if ip not in rate_limit_data:
+            rate_limit_data[ip] = {'count': 0, 'reset_time': now + timedelta(seconds=RATE_LIMIT_PERIOD)}
+        
+        if rate_limit_data[ip]['count'] >= RATE_LIMIT:
+            if now < rate_limit_data[ip]['reset_time']:
+                wait_time = (rate_limit_data[ip]['reset_time'] - now).seconds
+                return render_template('dashboard.html', 
+                    user=session['user'],
+                    error=f"Rate limit exceeded. Please wait {wait_time} seconds.",
+                    results=[], 
+                    social_media_results=[])
+            else:
+                rate_limit_data[ip] = {'count': 0, 'reset_time': now + timedelta(seconds=RATE_LIMIT_PERIOD)}
+        
+        rate_limit_data[ip]['count'] += 1
+        return f(*args, **kwargs)
+    return decorated_function
+
 # --- Flask Routes ---
 
 VALID_USER = 'eliberto'
@@ -254,60 +290,205 @@ def analyze():
     if 'user' not in session:
         return redirect('/')
 
+<<<<<<< HEAD
     keyword = request.form['search']
     channel = request.form['channel']
     start_date_str = request.form['start_date']
     end_date_str = request.form['end_date']
     max_videos = min(int(request.form.get('max_videos', '3')), 5)
+=======
+    try:
+        keyword = request.form['search']
+        channel = request.form['channel']
+        start_date_str = request.form['start_date']
+        end_date_str = request.form['end_date']
+>>>>>>> origin/main
 
-    start = datetime.strptime(start_date_str, "%Y-%m-%d")
-    end = datetime.strptime(end_date_str, "%Y-%m-%d")
+        start = datetime.strptime(start_date_str, "%Y-%m-%d")
+        end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
+<<<<<<< HEAD
     search_term = f"{keyword} {channel}".strip()
     posts = fetch_youtube_comments(search_term, max_videos) # Uses the keyword/max_videos version
     
     filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
+=======
+        if start > end:
+            logger.warning(f"Invalid date range: {start_date_str} to {end_date_str}")
+            return render_template('dashboard.html', user=session['user'], 
+                                error="Start date must be before end date",
+                                results=[], social_media_results=[])
 
-    return render_template('dashboard.html', user=session['user'], results=filtered_posts,
+        # Mock posts and comments (keep this for existing functionality)
+        posts = [
+            {
+                'title': f'{channel} Post 1 ({keyword})',
+                'comments': [
+                    {'text': 'Amazing!', 'type': 'positive'},
+                    {'text': 'Could be better.', 'type': 'suggestion'}
+                ],
+                'date': '2025-01-15',
+                'engagement': 78
+            },
+            {
+                'title': f'{channel} Post 2 ({keyword})',
+                'comments': [
+                    {'text': 'Bad experience.', 'type': 'negative'},
+                    {'text': 'Great stuff!', 'type': 'positive'}
+                ],
+                'date': '2025-03-01',
+                'engagement': 64
+            },
+            {
+                'title': f'{channel} Post 3 ({keyword})',
+                'comments': [
+                    {'text': 'Neutral comment.', 'type': 'neutral'},
+                    {'text': 'Loved it!', 'type': 'positive'}
+                ],
+                'date': '2025-02-10',
+                'engagement': 90
+            }
+        ]
+>>>>>>> origin/main
+
+        filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
+        logger.info(f"Analyzed {len(filtered_posts)} posts for keyword: {keyword}")
+
+        return render_template('dashboard.html', user=session['user'], results=filtered_posts,
                            keyword=keyword, channel=channel, start=start_date_str, end=end_date_str,
                            social_media_results=[])
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
 
+    except (KeyError, ValueError) as e:
+        logger.error(f"Error in analyze route: {str(e)}")
+        return render_template('dashboard.html', user=session['user'], 
+                           error="Invalid input parameters",
+                           results=[], social_media_results=[])
+    except Exception as e:
+        logger.error(f"Unexpected error in analyze route: {str(e)}")
+        return render_template('dashboard.html', user=session['user'], 
+                           error="An unexpected error occurred",
+                           results=[], social_media_results=[])
 @app.route('/check_social', methods=['POST'])
+@rate_limit
 def check_social_route():
     if 'user' not in session:
         return redirect('/')
 
-    username_to_check = request.form['social_username']
-    social_media_results = check_username_for_flask(username_to_check)
+    try:
+        username_to_check = request.form.get('social_username', '').strip()
+        
+        if not username_to_check:
+            return render_template('dashboard.html', 
+                user=session['user'],
+                error="Please provide a username to check",
+                results=[], 
+                social_media_results=[])
 
+<<<<<<< HEAD
     return render_template('dashboard.html', user=session['user'], results=[],
                            social_media_results=social_media_results,
                            checked_username=username_to_check)
+=======
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', username_to_check):
+            return render_template('dashboard.html', 
+                user=session['user'],
+                error="Invalid username format. Use only letters, numbers, dots, underscores, and hyphens.",
+                results=[], 
+                social_media_results=[])
+>>>>>>> origin/main
 
+        social_media_results = check_username_for_flask(username_to_check)
+        
+        logger.info(f"Completed social media check for username: {username_to_check}")
+        
+        return render_template('dashboard.html', 
+            user=session['user'],
+            results=[], 
+            social_media_results=social_media_results,
+            checked_username=username_to_check)
 
+    except Exception as e:
+        logger.error(f"Error in social media check: {str(e)}")
+        return render_template('dashboard.html', 
+            user=session['user'],
+            error="An error occurred while checking social media profiles",
+            results=[], 
+            social_media_results=[])
 @app.route('/logout')
 def logout():
-    session.clear()
-    return redirect('/')
+    try:
+        user = session.get('user', 'unknown')
+        session.clear()
+        logger.info(f"User {user} logged out successfully")
+        return redirect('/')
+    except Exception as e:
+        logger.error(f"Error during logout: {str(e)}")
+        session.clear()  # Make sure session is cleared even if there's an error
+        return redirect('/')
 
 @app.route('/report', methods=['POST'])
 def report():
-    data = json.loads(request.form['data'])
-    chart_img = request.form.get('chart')
+    try:
+        if 'user' not in session:
+            return redirect('/')
 
-    html = render_template("report_template.html", results=data, chart_img=chart_img)
+        if not request.form.get('data'):
+            logger.error("No data provided for report generation")
+            return "No data provided", 400
 
+<<<<<<< HEAD
     pdf = io.BytesIO()
     pisa.CreatePDF(html, dest=pdf)
     pdf.seek(0)
+=======
+        data = json.loads(request.form['data'])
+        chart_img = request.form.get('chart')
+>>>>>>> origin/main
 
-    return send_file(
-        pdf,
-        mimetype="application/pdf",
-        download_name="report.pdf",
-        as_attachment=True
-    )
+        html = render_template("report_template.html", results=data, chart_img=chart_img)
+
+        pdf = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html, dest=pdf)
+        
+        if pisa_status.err:
+            logger.error(f"Error creating PDF: {pisa_status.err}")
+            return "Error creating PDF", 500
+
+        pdf.seek(0)
+        
+        logger.info(f"Successfully generated PDF report for user {session['user']}")
+        return send_file(
+            pdf,
+            mimetype="application/pdf",
+            download_name=f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            as_attachment=True
+        )
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON data for report: {str(e)}")
+        return "Invalid data format", 400
+    except Exception as e:
+        logger.error(f"Unexpected error generating report: {str(e)}")
+        return "Error generating report", 500
+
+
+# Session configuration
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
+
+@app.before_request
+def check_session_timeout():
+    if 'user' in session:
+        if 'last_activity' not in session:
+            session['last_activity'] = datetime.now().timestamp()
+        else:
+            last_activity = datetime.fromtimestamp(session['last_activity'])
+            if datetime.now() - last_activity > timedelta(minutes=30):
+                session.clear()
+                return redirect('/')
+        session['last_activity'] = datetime.now().timestamp()
 
 
 # --- YouTube API Functions ---
