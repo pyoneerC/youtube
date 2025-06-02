@@ -5,24 +5,28 @@ import urllib.error
 import urllib.request
 import json
 from datetime import datetime
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from flask import Flask, redirect, session, request, render_template, send_file
 from xhtml2pdf import pisa
 import io
+from bs4 import BeautifulSoup # Added missing import
 
 # --- Flask App Setup ---
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'  # For session (CHANGE THIS IN PRODUCTION)
+
+# --- API Configuration ---
+YOUTUBE_API_KEY = 'AIzaSyA_pBApSdV9s5DjVyDh44mByJ5QYvkZzqg' # Consider moving to environment variables
 
 # --- Social Media Checker Configuration & Dependencies ---
 # Ignore SSL errors - use only for development/testing, not production
 ssl._create_default_https_context = ssl._create_unverified_context
 
 # HARDCODED API KEY AND MODEL AS REQUESTED
-GROQ_API_KEY = 'gsk_WVuGV4vOW4evfjNE7jlDWGdyb3FYTCLqeWU4v2CB351ckeugq1qwx'
+GROQ_API_KEY = 'gsk_WVuGV4vOW4evfjNE7jlDWGdyb3FYTCLqeWU4v2CB351ckeugq1qwx' # Consider moving to environment variables
 GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions'
-# User-specified model. VERIFY this model name is correct/accessible for your Groq account.
-# Public models often look like 'llama3-8b-8192' or 'mixtral-8x7b-32768'.
 GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 # --- Social Media Checker Core Functions (Modified for Flask) ---
@@ -70,7 +74,7 @@ def clean_html_content(html_content):
     if not html_content:
         return ""
 
-    soup = BeautifulSoup(html_content, "html.parser")
+    soup = BeautifulSoup(html_content, "html.parser") # Uses BeautifulSoup
 
     for tag in soup(["script", "style", "nav", "footer", "header", "link", "svg", "img", "form", "iframe", "button", "input"]):
         tag.decompose()
@@ -243,7 +247,6 @@ def login():
 def dashboard():
     if 'user' not in session:
         return redirect('/')
-    # Initialize results lists to empty if not present in session for first load
     return render_template('dashboard.html', user=session['user'], results=[], social_media_results=[])
 
 @app.route('/analyze', methods=['POST'])
@@ -255,46 +258,19 @@ def analyze():
     channel = request.form['channel']
     start_date_str = request.form['start_date']
     end_date_str = request.form['end_date']
+    max_videos = min(int(request.form.get('max_videos', '3')), 5)
 
     start = datetime.strptime(start_date_str, "%Y-%m-%d")
     end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-    # Mock posts and comments (keep this for existing functionality)
-    posts = [
-        {
-            'title': f'{channel} Post 1 ({keyword})',
-            'comments': [
-                {'text': 'Amazing!', 'type': 'positive'},
-                {'text': 'Could be better.', 'type': 'suggestion'}
-            ],
-            'date': '2025-01-15',
-            'engagement': 78
-        },
-        {
-            'title': f'{channel} Post 2 ({keyword})',
-            'comments': [
-                {'text': 'Bad experience.', 'type': 'negative'},
-                {'text': 'Great stuff!', 'type': 'positive'}
-            ],
-            'date': '2025-03-01',
-            'engagement': 64
-        },
-        {
-            'title': f'{channel} Post 3 ({keyword})',
-            'comments': [
-                {'text': 'Neutral comment.', 'type': 'neutral'},
-                {'text': 'Loved it!', 'type': 'positive'}
-            ],
-            'date': '2025-02-10',
-            'engagement': 90
-        }
-    ]
-
+    search_term = f"{keyword} {channel}".strip()
+    posts = fetch_youtube_comments(search_term, max_videos) # Uses the keyword/max_videos version
+    
     filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
 
     return render_template('dashboard.html', user=session['user'], results=filtered_posts,
                            keyword=keyword, channel=channel, start=start_date_str, end=end_date_str,
-                           social_media_results=[]) # Ensure social_media_results is empty for this type of search
+                           social_media_results=[])
 
 
 @app.route('/check_social', methods=['POST'])
@@ -305,9 +281,9 @@ def check_social_route():
     username_to_check = request.form['social_username']
     social_media_results = check_username_for_flask(username_to_check)
 
-    return render_template('dashboard.html', user=session['user'], results=[], # Clear previous search results
+    return render_template('dashboard.html', user=session['user'], results=[],
                            social_media_results=social_media_results,
-                           checked_username=username_to_check) # Pass username for display
+                           checked_username=username_to_check)
 
 
 @app.route('/logout')
@@ -323,7 +299,7 @@ def report():
     html = render_template("report_template.html", results=data, chart_img=chart_img)
 
     pdf = io.BytesIO()
-    pisa_status = pisa.CreatePDF(html, dest=pdf)
+    pisa.CreatePDF(html, dest=pdf)
     pdf.seek(0)
 
     return send_file(
@@ -334,7 +310,199 @@ def report():
     )
 
 
+# --- YouTube API Functions ---
+
+# Removed the shadowed fetch_youtube_comments(video_id) function as it was unused
+# and overwritten by the one below. If it was intended for a different purpose,
+# it should be given a unique name.
+
+def fetch_youtube_video_details(video_id):
+    """
+    Fetches details of a YouTube video (like count, view count, etc.) using the YouTube Data API.
+    Returns a dictionary with video details or None on error.
+    """
+    try:
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        video_response = youtube.videos().list(
+            part='statistics',
+            id=video_id
+        ).execute()
+
+        if not video_response['items']:
+            app.logger.warning(f"No video found for ID: {video_id}")
+            return None
+
+        return video_response['items'][0]['statistics']
+
+    except HttpError as e:
+        app.logger.error(f"An error occurred: {e}")
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {e}")
+    return None
+
+
+def fetch_youtube_channel_videos(channel_id):
+    """
+    Fetches all videos from a YouTube channel using the YouTube Data API.
+    Returns a list of videos with basic details or an empty list on error.
+    """
+    videos = []
+    try:
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        channel_response = youtube.channels().list(
+            part='contentDetails',
+            id=channel_id
+        ).execute()
+
+        if not channel_response['items']:
+            app.logger.warning(f"No channel found for ID: {channel_id}")
+            return videos
+
+        uploads_playlist_id = channel_response['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+        playlist_response = youtube.playlistItems().list(
+            part='snippet',
+            playlistId=uploads_playlist_id,
+            maxResults=50 # Fetches up to 50 videos. Add pagination if more are needed.
+        ).execute()
+
+        for item in playlist_response.get('items', []):
+            video_id = item['snippet']['resourceId']['videoId']
+            video_title = item['snippet']['title']
+            video_description = item['snippet']['description']
+            video_thumbnail = item['snippet']['thumbnails']['high']['url']
+            video_publish_date = item['snippet']['publishedAt']
+
+            videos.append({
+                'id': video_id,
+                'title': video_title,
+                'description': video_description,
+                'thumbnail': video_thumbnail,
+                'publish_date': video_publish_date
+            })
+    except HttpError as e:
+        app.logger.error(f"An error occurred: {e}")
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {e}")
+    return videos
+
+
+def search_youtube_channels(query):
+    """
+    Searches for YouTube channels by query string using the YouTube Data API.
+    Returns a list of channels with basic details or an empty list on error.
+    """
+    channels = []
+    try:
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        search_response = youtube.search().list(
+            part='snippet',
+            q=query,
+            type='channel',
+            maxResults=10
+        ).execute()
+
+        for item in search_response.get('items', []):
+            channel_id = item['snippet']['channelId']
+            channel_title = item['snippet']['title']
+            channel_description = item['snippet']['description']
+            channel_thumbnail = item['snippet']['thumbnails']['high']['url']
+
+            channels.append({
+                'id': channel_id,
+                'title': channel_title,
+                'description': channel_description,
+                'thumbnail': channel_thumbnail
+            })
+    except HttpError as e:
+        app.logger.error(f"An error occurred: {e}")
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {e}")
+    return channels
+
+
+def fetch_youtube_comments(keyword, max_videos=5): # This is the version used by /analyze
+    """
+    Fetches comments from YouTube videos matching the keyword.
+    Returns list of posts with their comments and metadata.
+    """
+    try:
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        
+        search_response = youtube.search().list(
+            q=keyword,
+            part='id,snippet',
+            type='video',
+            maxResults=max_videos,
+            order='date'
+        ).execute()
+
+        posts = []
+        
+        for search_result in search_response.get('items', []):
+            video_id = search_result['id']['videoId']
+            video_title = search_result['snippet']['title']
+            video_date = search_result['snippet']['publishedAt'][:10]
+            
+            video_stats_response = youtube.videos().list(
+                part='statistics',
+                id=video_id
+            ).execute()
+            
+            engagement = 0
+            if video_stats_response['items']:
+                engagement = int(video_stats_response['items'][0]['statistics'].get('likeCount', 0))
+            
+            try:
+                comments_response = youtube.commentThreads().list(
+                    part='snippet',
+                    videoId=video_id,
+                    maxResults=10,
+                    textFormat='plainText'
+                ).execute()
+                
+                comments_data = []
+                for item in comments_response.get('items', []):
+                    comment_text = item['snippet']['topLevelComment']['snippet']['textDisplay']
+                    comment_type = determine_comment_type(comment_text)
+                    comments_data.append({
+                        'text': comment_text,
+                        'type': comment_type
+                    })
+                
+                posts.append({
+                    'title': video_title,
+                    'comments': comments_data,
+                    'date': video_date,
+                    'engagement': engagement,
+                    'url': f'https://www.youtube.com/watch?v={video_id}'
+                })
+                
+            except HttpError as e:
+                app.logger.error(f"Error fetching comments for video {video_id}: {e}")
+                continue # Continue to next video if comments fail for one
+                
+        return posts
+        
+    except HttpError as e:
+        app.logger.error(f"An HTTP error occurred during YouTube search/video fetch: {e}")
+        return []
+    except Exception as e:
+        app.logger.error(f"An unexpected error occurred during YouTube fetch: {e}")
+        return []
+
+def determine_comment_type(comment_text):
+    """Uses Groq AI to determine the type of comment"""
+    prompt = f"""Analyze this YouTube comment and classify it as exactly one of these types: positive, negative, neutral, or suggestion.
+    Just return the type, nothing else.
+    Comment: {comment_text}
+    Type:"""
+    
+    response = call_groq_ai(prompt).lower().strip()
+    
+    valid_types = {'positive', 'negative', 'neutral', 'suggestion'}
+    return response if response in valid_types else 'neutral'
+
+# The duplicated Flask routes and YouTube API functions from line 447 onwards have been removed.
+
 if __name__ == '__main__':
-    # Initialize BeautifulSoup here to prevent import error if it's the only place it's used
-    from bs4 import BeautifulSoup
-    app.run(debug=True) # Run in debug mode for development
+    app.run(debug=True) # Added for local development
