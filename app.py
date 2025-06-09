@@ -290,66 +290,19 @@ def analyze():
     if 'user' not in session:
         return redirect('/')
 
-<<<<<<< HEAD
     keyword = request.form['search']
     channel = request.form['channel']
     start_date_str = request.form['start_date']
     end_date_str = request.form['end_date']
     max_videos = min(int(request.form.get('max_videos', '3')), 5)
-=======
-    try:
-        keyword = request.form['search']
-        channel = request.form['channel']
-        start_date_str = request.form['start_date']
-        end_date_str = request.form['end_date']
->>>>>>> origin/main
 
         start = datetime.strptime(start_date_str, "%Y-%m-%d")
         end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-<<<<<<< HEAD
     search_term = f"{keyword} {channel}".strip()
     posts = fetch_youtube_comments(search_term, max_videos) # Uses the keyword/max_videos version
     
     filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
-=======
-        if start > end:
-            logger.warning(f"Invalid date range: {start_date_str} to {end_date_str}")
-            return render_template('dashboard.html', user=session['user'], 
-                                error="Start date must be before end date",
-                                results=[], social_media_results=[])
-
-        # Mock posts and comments (keep this for existing functionality)
-        posts = [
-            {
-                'title': f'{channel} Post 1 ({keyword})',
-                'comments': [
-                    {'text': 'Amazing!', 'type': 'positive'},
-                    {'text': 'Could be better.', 'type': 'suggestion'}
-                ],
-                'date': '2025-01-15',
-                'engagement': 78
-            },
-            {
-                'title': f'{channel} Post 2 ({keyword})',
-                'comments': [
-                    {'text': 'Bad experience.', 'type': 'negative'},
-                    {'text': 'Great stuff!', 'type': 'positive'}
-                ],
-                'date': '2025-03-01',
-                'engagement': 64
-            },
-            {
-                'title': f'{channel} Post 3 ({keyword})',
-                'comments': [
-                    {'text': 'Neutral comment.', 'type': 'neutral'},
-                    {'text': 'Loved it!', 'type': 'positive'}
-                ],
-                'date': '2025-02-10',
-                'engagement': 90
-            }
-        ]
->>>>>>> origin/main
 
         filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
         logger.info(f"Analyzed {len(filtered_posts)} posts for keyword: {keyword}")
@@ -357,10 +310,6 @@ def analyze():
         return render_template('dashboard.html', user=session['user'], results=filtered_posts,
                            keyword=keyword, channel=channel, start=start_date_str, end=end_date_str,
                            social_media_results=[])
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/main
 
     except (KeyError, ValueError) as e:
         logger.error(f"Error in analyze route: {str(e)}")
@@ -388,18 +337,12 @@ def check_social_route():
                 results=[], 
                 social_media_results=[])
 
-<<<<<<< HEAD
-    return render_template('dashboard.html', user=session['user'], results=[],
-                           social_media_results=social_media_results,
-                           checked_username=username_to_check)
-=======
         if not re.match(r'^[a-zA-Z0-9_.-]+$', username_to_check):
             return render_template('dashboard.html', 
                 user=session['user'],
                 error="Invalid username format. Use only letters, numbers, dots, underscores, and hyphens.",
                 results=[], 
                 social_media_results=[])
->>>>>>> origin/main
 
         social_media_results = check_username_for_flask(username_to_check)
         
@@ -440,14 +383,9 @@ def report():
             logger.error("No data provided for report generation")
             return "No data provided", 400
 
-<<<<<<< HEAD
     pdf = io.BytesIO()
     pisa.CreatePDF(html, dest=pdf)
     pdf.seek(0)
-=======
-        data = json.loads(request.form['data'])
-        chart_img = request.form.get('chart')
->>>>>>> origin/main
 
         html = render_template("report_template.html", results=data, chart_img=chart_img)
 
