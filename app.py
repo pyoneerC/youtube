@@ -31,6 +31,14 @@ GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions'
 GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 # Configure logging
+import logging
+from functools import wraps
+from datetime import timedelta
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for server
+import matplotlib.pyplot as plt
+import base64
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -286,29 +294,39 @@ def dashboard():
     return render_template('dashboard.html', user=session['user'], results=[], social_media_results=[])
 
 @app.route('/analyze', methods=['POST'])
+@rate_limit
 def analyze():
     if 'user' not in session:
         return redirect('/')
 
-    keyword = request.form['search']
-    channel = request.form['channel']
-    start_date_str = request.form['start_date']
-    end_date_str = request.form['end_date']
-    max_videos = min(int(request.form.get('max_videos', '3')), 5)
+    try:
+        keyword = request.form['search']
+        channel = request.form['channel']
+        start_date_str = request.form['start_date']
+        end_date_str = request.form['end_date']
+        max_videos = min(int(request.form.get('max_videos', '3')), 5)
 
         start = datetime.strptime(start_date_str, "%Y-%m-%d")
         end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-    search_term = f"{keyword} {channel}".strip()
-    posts = fetch_youtube_comments(search_term, max_videos) # Uses the keyword/max_videos version
-    
-    filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
-
+        search_term = f"{keyword} {channel}".strip()
+        posts = fetch_youtube_comments(search_term, max_videos)
+        
         filtered_posts = [p for p in posts if start <= datetime.strptime(p['date'], "%Y-%m-%d") <= end]
+        
+        # Generate analytics summary
+        analytics = get_analytics_summary(filtered_posts)
+        
         logger.info(f"Analyzed {len(filtered_posts)} posts for keyword: {keyword}")
 
-        return render_template('dashboard.html', user=session['user'], results=filtered_posts,
-                           keyword=keyword, channel=channel, start=start_date_str, end=end_date_str,
+        return render_template('dashboard.html', 
+                           user=session['user'], 
+                           results=filtered_posts,
+                           analytics=analytics,
+                           keyword=keyword, 
+                           channel=channel, 
+                           start=start_date_str, 
+                           end=end_date_str,
                            social_media_results=[])
 
     except (KeyError, ValueError) as e:
@@ -383,10 +401,11 @@ def report():
             logger.error("No data provided for report generation")
             return "No data provided", 400
 
-    pdf = io.BytesIO()
-    pisa.CreatePDF(html, dest=pdf)
-    pdf.seek(0)
-
+        data = json.loads(request.form.get('data'))
+        
+        # Generate chart for the report
+        chart_img = generate_engagement_chart(data)
+        
         html = render_template("report_template.html", results=data, chart_img=chart_img)
 
         pdf = io.BytesIO()
@@ -621,7 +640,181 @@ def determine_comment_type(comment_text):
     valid_types = {'positive', 'negative', 'neutral', 'suggestion'}
     return response if response in valid_types else 'neutral'
 
-# The duplicated Flask routes and YouTube API functions from line 447 onwards have been removed.
+def generate_engagement_chart(data):
+    """
+    Generates a base64-encoded chart image for engagement analytics
+    """
+    try:
+        if not data:
+            return None
+            
+        # Extract data for charts
+        dates = []
+        engagements = []
+        titles = []
+        
+        for post in data:
+            dates.append(post.get('date', ''))
+            engagements.append(post.get('engagement', 0))
+            titles.append(post.get('title', '')[:30] + '...' if len(post.get('title', '')) > 30 else post.get('title', ''))
+        
+        if not dates:
+            return None
+            
+        # Create figure with subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+        fig.patch.set_facecolor('white')
+        
+        # Engagement over time
+        ax1.plot(range(len(dates)), engagements, marker='o', linewidth=2, markersize=6, color='#3B82F6')
+        ax1.set_title('Engagement Over Time', fontsize=16, fontweight='bold', pad=20)
+        ax1.set_xlabel('Posts', fontsize=12)
+        ax1.set_ylabel('Engagement (Likes)', fontsize=12)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xticks(range(len(dates)))
+        ax1.set_xticklabels(dates, rotation=45, ha='right')
+        
+        # Comment sentiment analysis
+        sentiment_counts = {'positive': 0, 'negative': 0, 'neutral': 0, 'suggestion': 0}
+        for post in data:
+            for comment in post.get('comments', []):
+                comment_type = comment.get('type', 'neutral')
+                if comment_type in sentiment_counts:
+                    sentiment_counts[comment_type] += 1
+        
+        colors = ['#10B981', '#EF4444', '#6B7280', '#F59E0B']
+        ax2.pie(sentiment_counts.values(), labels=sentiment_counts.keys(), autopct='%1.1f%%', 
+                colors=colors, startangle=90)
+        ax2.set_title('Comment Sentiment Distribution', fontsize=16, fontweight='bold', pad=20)
+        
+        plt.tight_layout()
+        
+        # Convert to base64
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+        img_buffer.seek(0)
+        img_base64 = base64.b64encode(img_buffer.getvalue()).decode()
+        plt.close()
+        
+        return f"data:image/png;base64,{img_base64}"
+        
+    except Exception as e:
+        logger.error(f"Error generating chart: {str(e)}")
+        return None
+
+def get_analytics_summary(posts):
+    """
+    Generate comprehensive analytics summary from posts data
+    """
+    if not posts:
+        return {}
+        
+    total_engagement = sum(post.get('engagement', 0) for post in posts)
+    total_comments = sum(len(post.get('comments', [])) for post in posts)
+    
+    # Sentiment analysis
+    sentiment_counts = {'positive': 0, 'negative': 0, 'neutral': 0, 'suggestion': 0}
+    all_comments = []
+    
+    for post in posts:
+        for comment in post.get('comments', []):
+            comment_type = comment.get('type', 'neutral')
+            if comment_type in sentiment_counts:
+                sentiment_counts[comment_type] += 1
+            all_comments.append(comment.get('text', ''))
+    
+    # Top performing content
+    top_post = max(posts, key=lambda x: x.get('engagement', 0)) if posts else None
+    
+    return {
+        'total_posts': len(posts),
+        'total_engagement': total_engagement,
+        'avg_engagement': total_engagement / len(posts) if posts else 0,
+        'total_comments': total_comments,
+        'sentiment_breakdown': sentiment_counts,
+        'top_performing_post': top_post,
+        'engagement_rate': (total_engagement / len(posts)) if posts else 0
+    }
+
+# --- Enhanced Analytics and Competitor Analysis Routes ---
+
+@app.route('/analytics/<channel_id>')
+def analytics_page(channel_id):
+    """Enhanced analytics page for specific channel analysis"""
+    if 'user' not in session:
+        return redirect('/')
+    
+    try:
+        # Fetch channel videos and analyze
+        videos = fetch_youtube_channel_videos(channel_id)
+        analytics_data = []
+        
+        for video in videos[:10]:  # Analyze last 10 videos
+            video_stats = fetch_youtube_video_details(video['id'])
+            if video_stats:
+                analytics_data.append({
+                    'title': video['title'],
+                    'date': video['publish_date'][:10],
+                    'engagement': int(video_stats.get('likeCount', 0)),
+                    'views': int(video_stats.get('viewCount', 0)),
+                    'comments_count': int(video_stats.get('commentCount', 0))
+                })
+        
+        summary = get_analytics_summary(analytics_data)
+        
+        return render_template('analytics.html', 
+                           user=session['user'],
+                           analytics_data=analytics_data,
+                           summary=summary,
+                           channel_id=channel_id)
+    
+    except Exception as e:
+        logger.error(f"Error in analytics page: {str(e)}")
+        return render_template('dashboard.html', 
+                           user=session['user'],
+                           error="Error loading analytics",
+                           results=[], 
+                           social_media_results=[])
+
+@app.route('/competitor_analysis', methods=['POST'])
+@rate_limit
+def competitor_analysis():
+    """Analyze competitor channels"""
+    if 'user' not in session:
+        return redirect('/')
+    
+    try:
+        competitor_username = request.form.get('competitor_username', '').strip()
+        
+        if not competitor_username:
+            return render_template('dashboard.html', 
+                user=session['user'],
+                error="Please provide a competitor username",
+                results=[], 
+                social_media_results=[])
+        
+        # Search for the competitor channel
+        channels = search_youtube_channels(competitor_username)
+        
+        if not channels:
+            return render_template('dashboard.html', 
+                user=session['user'],
+                error="No channels found for the given username",
+                results=[], 
+                social_media_results=[])
+        
+        # Redirect to analytics page for the first found channel
+        return redirect(f'/analytics/{channels[0]["id"]}')
+        
+    except Exception as e:
+        logger.error(f"Error in competitor analysis: {str(e)}")
+        return render_template('dashboard.html', 
+                           user=session['user'],
+                           error="Error analyzing competitor",
+                           results=[], 
+                           social_media_results=[])
+
+# ...existing code...
 
 if __name__ == '__main__':
     app.run(debug=True) # Added for local development

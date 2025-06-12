@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - InsightHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center w-full max-w-7xl mx-auto p-6">
+        <div class="flex items-center space-x-4">
+            <a href="/dashboard" class="text-blue-300 hover:text-white transition">← Back to Dashboard</a>
+            <h1 class="text-3xl font-bold">Analytics Dashboard</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="text-lg">Welcome, {{ user }}!</span>
+            <a href="/logout" class="px-4 py-2 rounded-full bg-red-600 text-white font-bold hover:bg-red-700 transition">
+                Logout
+            </a>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto p-6 space-y-8">
+        
+        <!-- Summary Cards -->
+        {% if summary %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-blue-200">Total Videos</h3>
+                <p class="text-3xl font-bold">{{ summary.total_posts }}</p>
+            </div>
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-green-200">Total Engagement</h3>
+                <p class="text-3xl font-bold">{{ "{:,}".format(summary.total_engagement) }}</p>
+            </div>
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-yellow-200">Avg. Engagement</h3>
+                <p class="text-3xl font-bold">{{ "{:,.0f}".format(summary.avg_engagement) }}</p>
+            </div>
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-purple-200">Engagement Rate</h3>
+                <p class="text-3xl font-bold">{{ "{:.1f}".format(summary.engagement_rate) }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Engagement Chart -->
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-xl font-semibold mb-4">Engagement Over Time</h3>
+                <canvas id="engagementChart" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Performance Metrics -->
+            <div class="glass-effect rounded-lg p-6">
+                <h3 class="text-xl font-semibold mb-4">Performance Breakdown</h3>
+                <canvas id="performanceChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Top Performing Content -->
+        {% if summary.top_performing_post %}
+        <div class="glass-effect rounded-lg p-6">
+            <h3 class="text-xl font-semibold mb-4">🏆 Top Performing Content</h3>
+            <div class="bg-gradient-to-r from-yellow-400/20 to-orange-500/20 rounded-lg p-4 border border-yellow-400/30">
+                <h4 class="text-lg font-bold text-yellow-200">{{ summary.top_performing_post.title }}</h4>
+                <div class="flex items-center space-x-4 mt-2 text-sm">
+                    <span class="text-green-300">❤️ {{ "{:,}".format(summary.top_performing_post.engagement) }} likes</span>
+                    <span class="text-blue-300">📅 {{ summary.top_performing_post.date }}</span>
+                    {% if summary.top_performing_post.views %}
+                    <span class="text-purple-300">👁️ {{ "{:,}".format(summary.top_performing_post.views) }} views</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Videos Table -->
+        {% if analytics_data %}
+        <div class="glass-effect rounded-lg p-6">
+            <h3 class="text-xl font-semibold mb-4">Recent Videos Performance</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b border-white/20">
+                            <th class="pb-3 text-blue-200">Title</th>
+                            <th class="pb-3 text-green-200">Engagement</th>
+                            <th class="pb-3 text-purple-200">Views</th>
+                            <th class="pb-3 text-yellow-200">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for video in analytics_data %}
+                        <tr class="border-b border-white/10 hover:bg-white/5 transition">
+                            <td class="py-3 pr-4">
+                                <div class="max-w-xs">
+                                    <p class="font-medium">{{ video.title[:60] }}{% if video.title|length > 60 %}...{% endif %}</p>
+                                </div>
+                            </td>
+                            <td class="py-3 text-green-300">{{ "{:,}".format(video.engagement) }}</td>
+                            <td class="py-3 text-purple-300">{{ "{:,}".format(video.get('views', 0)) }}</td>
+                            <td class="py-3 text-yellow-300">{{ video.date }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-4 justify-center">
+            <button onclick="generateReport()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition">
+                📊 Generate Detailed Report
+            </button>
+            <button onclick="exportData()" class="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition">
+                📤 Export Data
+            </button>
+            <button onclick="scheduleReport()" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold transition">
+                ⏰ Schedule Reports
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Chart data from backend
+        const analyticsData = {{ analytics_data | tojsonfilter | safe }};
+        
+        // Engagement Chart
+        const engagementCtx = document.getElementById('engagementChart').getContext('2d');
+        new Chart(engagementCtx, {
+            type: 'line',
+            data: {
+                labels: analyticsData.map(item => item.date),
+                datasets: [{
+                    label: 'Engagement',
+                    data: analyticsData.map(item => item.engagement),
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: { color: 'white' }
+                    }
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    },
+                    y: { 
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255,255,255,0.1)' }
+                    }
+                }
+            }
+        });
+
+        // Performance Chart
+        const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+        new Chart(performanceCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['High Engagement', 'Medium Engagement', 'Low Engagement'],
+                datasets: [{
+                    data: [
+                        analyticsData.filter(item => item.engagement > 1000).length,
+                        analyticsData.filter(item => item.engagement > 100 && item.engagement <= 1000).length,
+                        analyticsData.filter(item => item.engagement <= 100).length
+                    ],
+                    backgroundColor: ['#10B981', '#F59E0B', '#EF4444']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        labels: { color: 'white' }
+                    }
+                }
+            }
+        });
+
+        // Action Functions
+        function generateReport() {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/report';
+            
+            const dataInput = document.createElement('input');
+            dataInput.type = 'hidden';
+            dataInput.name = 'data';
+            dataInput.value = JSON.stringify(analyticsData);
+            
+            form.appendChild(dataInput);
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        function exportData() {
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "Title,Date,Engagement,Views\n"
+                + analyticsData.map(item => 
+                    `"${item.title}","${item.date}","${item.engagement}","${item.views || 0}"`
+                ).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `analytics_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function scheduleReport() {
+            alert('Scheduled reporting feature coming soon! 🚀');
+        }
+
+        // Auto-refresh every 5 minutes
+        setTimeout(() => {
+            location.reload();
+        }, 300000);
+    </script>
+</body>
+</html>

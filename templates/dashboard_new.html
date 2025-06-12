@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InsightHub - Social Media Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    
+    <!-- Header -->
+    <div class="flex justify-between items-center w-full max-w-7xl mx-auto p-6">
+        <div class="flex items-center space-x-4">
+            <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                <span class="text-xl font-bold">IH</span>
+            </div>
+            <h1 class="text-3xl font-bold">InsightHub</h1>
+            <span class="text-sm bg-blue-500/30 px-3 py-1 rounded-full">Pro</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="text-lg">Welcome, <strong>{{ user }}</strong>!</span>
+            <a href="/logout" class="px-4 py-2 rounded-full bg-red-600 text-white font-bold hover:bg-red-700 transition">
+                Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Error Messages -->
+    {% if error %}
+    <div class="max-w-7xl mx-auto px-6 mb-6">
+        <div class="bg-red-500/20 text-red-300 p-4 rounded-lg border border-red-500/50 fade-in" role="alert">
+            <strong>Error:</strong> {{ error }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Analytics Summary Cards -->
+    {% if analytics %}
+    <div class="max-w-7xl mx-auto px-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 fade-in">
+            <div class="glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-blue-200 text-sm font-medium">Total Content</p>
+                        <p class="text-3xl font-bold">{{ analytics.total_posts }}</p>
+                    </div>
+                    <div class="text-blue-400 text-2xl">📊</div>
+                </div>
+            </div>
+            <div class="glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-green-200 text-sm font-medium">Total Engagement</p>
+                        <p class="text-3xl font-bold">{{ "{:,}".format(analytics.total_engagement) }}</p>
+                    </div>
+                    <div class="text-green-400 text-2xl">❤️</div>
+                </div>
+            </div>
+            <div class="glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-yellow-200 text-sm font-medium">Avg. Engagement</p>
+                        <p class="text-3xl font-bold">{{ "{:,.0f}".format(analytics.avg_engagement) }}</p>
+                    </div>
+                    <div class="text-yellow-400 text-2xl">📈</div>
+                </div>
+            </div>
+            <div class="glass-effect rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-purple-200 text-sm font-medium">Total Comments</p>
+                        <p class="text-3xl font-bold">{{ analytics.total_comments }}</p>
+                    </div>
+                    <div class="text-purple-400 text-2xl">💬</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="max-w-7xl mx-auto px-6 space-y-8">
+        
+        <!-- Main Analysis Tools -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- Content Analysis -->
+            <div class="glass-effect rounded-lg p-6 fade-in">
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <span class="mr-3">🎯</span>
+                    Content Analysis
+                </h2>
+                <form method="POST" action="/analyze" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input
+                            type="text"
+                            name="search"
+                            placeholder="Search Keyword"
+                            class="px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/70 focus:outline-none focus:border-blue-400 focus:bg-white/20 transition"
+                            required
+                        />
+                        <select
+                            name="channel"
+                            class="px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white focus:outline-none focus:border-blue-400 focus:bg-white/20 transition"
+                            required
+                        >
+                            <option value="" disabled selected>Select Platform</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="tiktok">TikTok (Coming Soon)</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input
+                            type="date"
+                            name="start_date"
+                            class="px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white focus:outline-none focus:border-blue-400 focus:bg-white/20 transition"
+                            required
+                        />
+                        <input
+                            type="date"
+                            name="end_date"
+                            class="px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white focus:outline-none focus:border-blue-400 focus:bg-white/20 transition"
+                            required
+                        />
+                        <input
+                            type="number"
+                            name="max_videos"
+                            placeholder="Max Videos (1-5)"
+                            min="1"
+                            max="5"
+                            value="3"
+                            class="px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/70 focus:outline-none focus:border-blue-400 focus:bg-white/20 transition"
+                            required
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        class="w-full px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition transform hover:scale-105"
+                    >
+                        🚀 Analyze Content
+                    </button>
+                </form>
+            </div>
+
+            <!-- Competitor Analysis -->
+            <div class="glass-effect rounded-lg p-6 fade-in">
+                <h2 class="text-2xl font-bold mb-6 flex items-center">
+                    <span class="mr-3">🔍</span>
+                    Competitor Analysis
+                </h2>
+                <form method="POST" action="/competitor_analysis" class="space-y-4">
+                    <input
+                        type="text"
+                        name="competitor_username"
+                        placeholder="Competitor Channel/Username"
+                        class="w-full px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/70 focus:outline-none focus:border-green-400 focus:bg-white/20 transition"
+                        required
+                    />
+                    <p class="text-sm text-white/70">
+                        📊 Analyze competitor channels to understand their content strategy and performance
+                    </p>
+                    <button
+                        type="submit"
+                        class="w-full px-6 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white font-bold transition transform hover:scale-105"
+                    >
+                        🎯 Analyze Competitor
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Social Media Profile Check -->
+        <div class="glass-effect rounded-lg p-6 fade-in">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="mr-3">🌐</span>
+                Social Media Profile Check
+            </h2>
+            <form method="POST" action="/check_social" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div class="md:col-span-2">
+                    <input
+                        type="text"
+                        name="social_username"
+                        placeholder="Enter Username to Check"
+                        class="w-full px-4 py-3 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/70 focus:outline-none focus:border-purple-400 focus:bg-white/20 transition"
+                        required
+                    />
+                </div>
+                <div class="text-sm text-white/70">
+                    <p>Check if username is available across platforms</p>
+                </div>
+                <button
+                    type="submit"
+                    class="px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition transform hover:scale-105"
+                >
+                    🔎 Check Profiles
+                </button>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        {% if results and results|length > 0 %}
+        <div class="glass-effect rounded-lg p-6 fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold flex items-center">
+                    <span class="mr-3">📈</span>
+                    Analysis Results
+                </h2>
+                <div class="flex space-x-3">
+                    <button onclick="generateReport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold transition">
+                        📊 Generate Report
+                    </button>
+                    <button onclick="exportData()" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-semibold transition">
+                        📤 Export CSV
+                    </button>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                {% for post in results %}
+                <div class="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div class="flex justify-between items-start mb-3">
+                        <h3 class="text-lg font-semibold text-white">{{ post.title }}</h3>
+                        <div class="flex space-x-4 text-sm">
+                            <span class="text-green-300">❤️ {{ "{:,}".format(post.engagement) }}</span>
+                            <span class="text-blue-300">📅 {{ post.date }}</span>
+                        </div>
+                    </div>
+                    
+                    {% if post.comments %}
+                    <div class="mt-4">
+                        <h4 class="text-sm font-semibold text-gray-300 mb-2">Comments Analysis:</h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                            {% set comment_types = {} %}
+                            {% for comment in post.comments %}
+                                {% if comment.type in comment_types %}
+                                    {% set _ = comment_types.update({comment.type: comment_types[comment.type] + 1}) %}
+                                {% else %}
+                                    {% set _ = comment_types.update({comment.type: 1}) %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            <div class="text-center p-2 bg-green-500/20 rounded">
+                                <div class="text-lg font-bold text-green-300">{{ comment_types.get('positive', 0) }}</div>
+                                <div class="text-xs text-green-200">Positive</div>
+                            </div>
+                            <div class="text-center p-2 bg-red-500/20 rounded">
+                                <div class="text-lg font-bold text-red-300">{{ comment_types.get('negative', 0) }}</div>
+                                <div class="text-xs text-red-200">Negative</div>
+                            </div>
+                            <div class="text-center p-2 bg-gray-500/20 rounded">
+                                <div class="text-lg font-bold text-gray-300">{{ comment_types.get('neutral', 0) }}</div>
+                                <div class="text-xs text-gray-200">Neutral</div>
+                            </div>
+                            <div class="text-center p-2 bg-yellow-500/20 rounded">
+                                <div class="text-lg font-bold text-yellow-300">{{ comment_types.get('suggestion', 0) }}</div>
+                                <div class="text-xs text-yellow-200">Suggestions</div>
+                            </div>
+                        </div>
+                        
+                        <div class="max-h-40 overflow-y-auto space-y-1">
+                            {% for comment in post.comments[:5] %}
+                            <div class="text-sm p-2 bg-black/20 rounded {% if comment.type == 'positive' %}border-l-4 border-green-400{% elif comment.type == 'negative' %}border-l-4 border-red-400{% elif comment.type == 'suggestion' %}border-l-4 border-yellow-400{% else %}border-l-4 border-gray-400{% endif %}">
+                                <span class="font-semibold text-xs uppercase text-{% if comment.type == 'positive' %}green{% elif comment.type == 'negative' %}red{% elif comment.type == 'suggestion' %}yellow{% else %}gray{% endif %}-300">{{ comment.type }}</span>
+                                <p class="text-white/80">{{ comment.text[:100] }}{% if comment.text|length > 100 %}...{% endif %}</p>
+                            </div>
+                            {% endfor %}
+                            {% if post.comments|length > 5 %}
+                            <p class="text-xs text-gray-400 text-center">... and {{ post.comments|length - 5 }} more comments</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-3 pt-3 border-t border-white/10">
+                        <a href="{{ post.url }}" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm transition">
+                            🔗 View Original Content
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Social Media Results -->
+        {% if social_media_results and social_media_results|length > 0 %}
+        <div class="glass-effect rounded-lg p-6 fade-in">
+            <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <span class="mr-3">🌐</span>
+                Social Media Profile Results for "{{ checked_username }}"
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for result in social_media_results %}
+                <div class="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-semibold">{{ result.platform }}</h3>
+                        <span class="px-2 py-1 rounded-full text-xs font-semibold {% if result.status_color == 'green' %}bg-green-500/20 text-green-300{% else %}bg-red-500/20 text-red-300{% endif %}">
+                            {{ result.status }}
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-300 mb-2">{{ result.reason }}</p>
+                    {% if result.url_display != 'N/A' %}
+                    <a href="{{ result.url_display }}" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm transition">
+                        🔗 View Profile
+                    </a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Footer -->
+    <div class="max-w-7xl mx-auto px-6 py-8 mt-12 text-center">
+        <p class="text-white/50 text-sm">
+            © 2025 InsightHub - Professional Social Media Intelligence Platform
+        </p>
+    </div>
+
+    <script>
+        // Auto-set date range to last 30 days
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+        
+        document.querySelector('input[name="end_date"]').value = today.toISOString().split('T')[0];
+        document.querySelector('input[name="start_date"]').value = thirtyDaysAgo.toISOString().split('T')[0];
+
+        // Generate Report Function
+        function generateReport() {
+            const results = {{ (results or []) | tojsonfilter | safe }};
+            if (results.length === 0) {
+                alert('No data to generate report. Please run an analysis first.');
+                return;
+            }
+            
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/report';
+            
+            const dataInput = document.createElement('input');
+            dataInput.type = 'hidden';
+            dataInput.name = 'data';
+            dataInput.value = JSON.stringify(results);
+            
+            form.appendChild(dataInput);
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // Export Data Function
+        function exportData() {
+            const results = {{ (results or []) | tojsonfilter | safe }};
+            if (results.length === 0) {
+                alert('No data to export. Please run an analysis first.');
+                return;
+            }
+            
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Title,Date,Engagement,URL,Positive Comments,Negative Comments,Neutral Comments,Suggestions\n";
+            
+            results.forEach(post => {
+                const commentTypes = {positive: 0, negative: 0, neutral: 0, suggestion: 0};
+                post.comments.forEach(comment => {
+                    if (commentTypes.hasOwnProperty(comment.type)) {
+                        commentTypes[comment.type]++;
+                    }
+                });
+                
+                csvContent += `"${post.title}","${post.date}","${post.engagement}","${post.url}","${commentTypes.positive}","${commentTypes.negative}","${commentTypes.neutral}","${commentTypes.suggestion}"\n`;
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `content_analysis_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Show loading states
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                const button = form.querySelector('button[type="submit"]');
+                const originalText = button.innerHTML;
+                button.innerHTML = '⏳ Processing...';
+                button.disabled = true;
+                
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 30000); // Reset after 30 seconds in case of error
+            });
+        });
+    </script>
+</body>
+</html>
