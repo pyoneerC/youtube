@@ -20,14 +20,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements.txt y script de instalación
-COPY requirements.txt install.sh ./
+# Copiar requirements.txt y scripts
+COPY requirements.txt ./
+COPY scripts/install.sh ./scripts/
 
 # Hacer ejecutable el script de instalación
-RUN chmod +x install.sh
+RUN chmod +x ./scripts/install.sh
 
 # Instalar dependencias de Python usando nuestro script personalizado
-RUN ./install.sh
+RUN ./scripts/install.sh
 
 # Copiar el resto del código de la aplicación
 COPY . .

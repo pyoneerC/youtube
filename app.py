@@ -8,10 +8,13 @@ import yaml
 from datetime import datetime
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from flask import jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 from flask_swagger_ui import get_swaggerui_blueprint
 from config.logger import setup_logging, log_time, log_exceptions
 from prometheus_client import Counter, Histogram, start_http_server
+
+# Initialize Flask app
+app = Flask(__name__)
 
 # Setup logging
 logger = setup_logging()

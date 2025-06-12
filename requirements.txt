@@ -25,9 +25,15 @@ loguru
 
 # Visualización y gráficos
 matplotlib
+seaborn
 numpy
 pandas
+
+# Utilidades y herramientas
+python-dotenv
+pytz
 Pillow
+flask-swagger-ui
 
 # Monitoreo y métricas
 prometheus-client
