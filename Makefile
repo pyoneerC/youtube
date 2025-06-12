@@ -1,5 +1,5 @@
 .PHONY: install test clean run docker-build docker-run docker-compose-up docker-compose-down \
-	coverage security-check build-docs serve-docs help backup monitor update-deps
+	coverage security-check build-docs serve-docs help backup monitor update-deps api-docs validate-api
 
 install: ## Instalar dependencias del proyecto
 	./scripts/install.sh
@@ -59,6 +59,13 @@ build-docs: ## Construir documentación
 
 serve-docs: build-docs ## Servir documentación localmente
 	./scripts/serve_docs.sh
+
+api-docs: ## Ver documentación de la API
+	@echo "API documentation available at http://localhost:8000/api/docs"
+	@echo "Make sure the application is running with 'make run'"
+
+validate-api: ## Validar especificación OpenAPI
+	yamllint static/swagger/openapi.yaml
 
 help: ## Mostrar este mensaje de ayuda
 	@echo "Comandos disponibles:"

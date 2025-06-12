@@ -9,12 +9,14 @@ fastapi
 flake8
 # Web Framework y dependencias relacionadas
 Flask
+gunicorn
+Werkzeug
+flask-swagger-ui
 
 # Google API
 google-api-python-client
 google-auth
 google-auth-httplib2
-gunicorn
 html5lib
 idna
 
@@ -53,7 +55,9 @@ structlog
 typer
 urllib3
 uvicorn[standard]
-Werkzeug
 
 # Procesamiento de HTML y PDF
 xhtml2pdf
+
+# API Documentation
+PyYAML

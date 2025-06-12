@@ -4,15 +4,36 @@ import time
 import urllib.error
 import urllib.request
 import json
+import yaml
 from datetime import datetime
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from flask import jsonify, request
+from flask import jsonify, request, send_from_directory
+from flask_swagger_ui import get_swaggerui_blueprint
 from config.logger import setup_logging, log_time, log_exceptions
 from prometheus_client import Counter, Histogram, start_http_server
 
 # Setup logging
 logger = setup_logging()
+
+# Swagger UI Configuration
+SWAGGER_URL = '/api/docs'
+API_URL = '/static/swagger/openapi.yaml'
+
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': "InsightHub API Documentation",
+        'deepLinking': True
+    }
+)
+
+app.register_blueprint(swaggerui_blueprint)
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
 
 # Prometheus metrics
 REQUEST_COUNT = Counter(
@@ -572,8 +593,7 @@ def check_session_timeout():
 # --- YouTube API Functions ---
 
 # Removed the shadowed fetch_youtube_comments(video_id) function as it was unused
-# and overwritten by the one below. If it was intended for a different purpose,
-# it should be given a unique name.
+# and overwritten by the one below.
 
 
 def fetch_youtube_video_details(video_id):
