@@ -58,7 +58,7 @@ build-docs: ## Construir documentación
 	cd docs && sphinx-build -b html source build/html
 
 serve-docs: build-docs ## Servir documentación localmente
-	cd docs/build/html && python -m http.server 8080
+	./scripts/serve_docs.sh
 
 help: ## Mostrar este mensaje de ayuda
 	@echo "Comandos disponibles:"
