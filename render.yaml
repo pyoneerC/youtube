@@ -1,7 +1,0 @@
-services:
-  - type: web
-    name: insighthub
-    env: python
-    plan: free
-    buildCommand: ""
-    startCommand: gunicorn app:app

@@ -1,32 +1,204 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-  <meta charset="utf-8">
-  <title>Report</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 30px; }
-    h1 { color: #333; }
-    .post { margin-bottom: 20px; }
-    img.chart { width: 100%; max-width: 700px; margin: 30px 0; }
-  </style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InsightHub - Reporte de Análisis</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        :root {
+            --primary-color: #8B5CF6;
+            --bg-color: #111827;
+            --text-color: #F9FAFB;
+            --border-color: #374151;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .header p {
+            color: #9CA3AF;
+        }
+        
+        .chart-section {
+            background: #1F2937;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .chart-section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #E5E7EB;
+        }
+        
+        .chart {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            display: block;
+            border-radius: 0.5rem;
+        }
+        
+        .posts-section {
+            display: grid;
+            gap: 2rem;
+        }
+        
+        .post-card {
+            background: #1F2937;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .post-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #E5E7EB;
+        }
+        
+        .post-date {
+            color: #9CA3AF;
+            font-size: 0.875rem;
+        }
+        
+        .engagement-stats {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 9999px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .engagement-stats strong {
+            color: var(--primary-color);
+            margin-right: 0.5rem;
+        }
+        
+        .comments-section {
+            background: #374151;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        
+        .comment {
+            padding: 0.75rem;
+            border-bottom: 1px solid #4B5563;
+        }
+        
+        .comment:last-child {
+            border-bottom: none;
+        }
+        
+        .comment-text {
+            color: #E5E7EB;
+            margin-bottom: 0.25rem;
+        }
+        
+        .comment-type {
+            color: #9CA3AF;
+            font-size: 0.875rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .header {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>InsightHub Report</h1>
+    <div class="container">
+        <header class="header">
+            <h1>InsightHub Analytics</h1>
+            <p>Reporte detallado de engagement y análisis de contenido</p>
+        </header>
 
-  {% if chart_img %}
-    <img src="{{ chart_img }}" alt="Engagement Chart" class="chart">
-  {% endif %}
+        {% if chart_img %}
+        <section class="chart-section">
+            <h2>Análisis de Engagement</h2>
+            <img src="{{ chart_img }}" alt="Gráfico de Engagement" class="chart">
+        </section>
+        {% endif %}
 
-  {% for post in results %}
-    <div class="post">
-      <h2>{{ post.title }} ({{ post.date }})</h2>
-      <p><strong>Engagement:</strong> {{ post.engagement }}%</p>
-      <ul>
-        {% for c in post.comments %}
-          <li>{{ c.text }} ({{ c.type }})</li>
-        {% endfor %}
-      </ul>
+        <section class="posts-section">
+            {% for post in results %}
+            <article class="post-card">
+                <div class="post-header">
+                    <h3 class="post-title">{{ post.title }}</h3>
+                    <span class="post-date">{{ post.date }}</span>
+                </div>
+
+                <div class="engagement-stats">
+                    <strong>Engagement:</strong>
+                    <span>{{ post.engagement }}%</span>
+                </div>
+
+                {% if post.comments %}
+                <div class="comments-section">
+                    {% for comment in post.comments %}
+                    <div class="comment">
+                        <p class="comment-text">{{ comment.text }}</p>
+                        <span class="comment-type">{{ comment.type }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </section>
     </div>
-  {% endfor %}
 </body>
 </html>

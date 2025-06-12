@@ -1,5 +1,43 @@
-xhtml2pdf~=0.2.17
-gunicorn~=20.1.0
-flask~=2.2.5
-beautifulsoup4~=4.12.0
-requests~=2.31.0
+# Web Framework y dependencias relacionadas
+Flask
+gunicorn
+Werkzeug
+
+# Procesamiento de HTML y PDF
+xhtml2pdf
+beautifulsoup4
+html5lib
+reportlab
+
+# Requests y manejo de HTTP
+requests
+urllib3
+certifi
+
+# Google API
+google-api-python-client
+google-auth
+google-auth-httplib2
+
+# Visualización y gráficos
+matplotlib
+seaborn
+numpy
+pandas
+
+# Utilidades y herramientas
+python-dotenv
+pytz
+Pillow
+charset-normalizer
+idna
+
+# Testing y desarrollo
+pytest
+pytest-cov
+black
+flake8
+
+# Seguridad
+cryptography
+PyJWT

@@ -1,1 +1,187 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# IDEs y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Coverage y testing
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+.pytest_cache/
+
+# Logs y bases de datos
+*.log
+*.sqlite
+*.db
+*.sql
+*.sqlite3
+instance/
+logs/
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Archivos específicos del proyecto
+node_modules/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*
+
+# Archivos temporales
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Archivos de compilación
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.mo
+*.pot
+
+# Archivos de configuración local
+local_settings.py
+config.local.py
+
+# Archivos de caché
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Poetry
+poetry.lock
+dist/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Archivos generados por la aplicación
+uploads/
+media/
+static/generated/
+reports/
+*.pdf
+*.csv
+*.xlsx
+*.xls
+
+# Archivos de seguridad y claves
+*.pem
+*.key
+*.cert
+*.crt
+*.cer
+*.p12
+*.pfx
+*.env*
+.env.local
+.env.*.local
+
+# Archivos de dependencias
+package-lock.json
+yarn.lock
+poetry.lock
+
+# Archivos de compilación y optimización
+*.min.js
+*.min.css
+*.map
+.sass-cache/
+*.css.map
+*.js.map
+
+# Archivos específicos del framework
+__init__.pyc
+*.pyc
+.webassets-cache/
+
+# Archivos de respaldo
+*~
+*.bak
+*.swp
+*.swo
+
+# Archivos de despliegue
 .vercel
+.netlify
+.now
+.deploy/
+*.pid
