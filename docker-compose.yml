@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - redis
+    command: gunicorn --workers=2 --threads=4 --bind=0.0.0.0:8000 --reload app:app
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  test:
+    build: .
+    volumes:
+      - .:/app
+    command: pytest
+    environment:
+      - FLASK_ENV=testing
+      - PYTHONPATH=/app
+
+volumes:
+  redis_data:
