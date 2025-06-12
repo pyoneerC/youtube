@@ -73,6 +73,19 @@ migrate: ## Ejecutar migraciones de base de datos (si se implementan en el futur
 requirements: ## Actualizar requirements.txt
 	pip freeze > requirements.txt
 
+backup: ## Ejecutar backup
+	./scripts/backup.sh
+
+deploy: ## Desplegar a producción
+	git push heroku main
+
+monitor: ## Iniciar monitoreo
+	docker-compose up prometheus grafana
+
+update-deps: ## Actualizar dependencias
+	pip-compile requirements.in
+	pip-sync requirements.txt
+
 help: ## Mostrar esta ayuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 

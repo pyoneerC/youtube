@@ -1,43 +1,59 @@
+beautifulsoup4
+black
+certifi
+charset-normalizer
+
+# Seguridad
+cryptography
+fastapi
+flake8
 # Web Framework y dependencias relacionadas
 Flask
-gunicorn
-Werkzeug
-
-# Procesamiento de HTML y PDF
-xhtml2pdf
-beautifulsoup4
-html5lib
-reportlab
-
-# Requests y manejo de HTTP
-requests
-urllib3
-certifi
 
 # Google API
 google-api-python-client
 google-auth
 google-auth-httplib2
+gunicorn
+html5lib
+idna
+
+# Logging mejorado
+loguru
 
 # Visualización y gráficos
 matplotlib
-seaborn
 numpy
 pandas
-
-# Utilidades y herramientas
-python-dotenv
-pytz
 Pillow
-charset-normalizer
-idna
+
+# Monitoreo y métricas
+prometheus-client
+
+# Utilidades y herramientas de desarrollo
+pydantic
+PyJWT
 
 # Testing y desarrollo
 pytest
 pytest-cov
-black
-flake8
 
-# Seguridad
-cryptography
-PyJWT
+# Utilidades y herramientas
+python-dotenv
+python-json-logger
+pytz
+reportlab
+
+# Requests y manejo de HTTP
+requests
+rich
+seaborn
+statsd
+structlog
+typer
+urllib3
+uvicorn[standard]
+Werkzeug
+
+# Procesamiento de HTML y PDF
+xhtml2pdf

@@ -5,6 +5,7 @@ services:
     build: .
     ports:
       - "8000:8000"
+      - "8001:8001"  # For Prometheus metrics
     volumes:
       - .:/app
     environment:
@@ -14,22 +15,50 @@ services:
     depends_on:
       - redis
     command: gunicorn --workers=2 --threads=4 --bind=0.0.0.0:8000 --reload app:app
+    networks:
+      - monitoring
 
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
+    networks:
+      - monitoring
 
-  test:
-    build: .
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
     volumes:
-      - .:/app
-    command: pytest
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana_data:/var/lib/grafana
     environment:
-      - FLASK_ENV=testing
-      - PYTHONPATH=/app
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
 
 volumes:
-  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
