@@ -3,15 +3,22 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InsightHub - Reporte de Análisis</title>
+    <title>InsightHub - Reporte de Análisis de Redes Sociales</title>
+    <!-- Chart.js para visualizaciones -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
         :root {
             --primary-color: #8B5CF6;
+            --secondary-color: #EC4899;
+            --success-color: #10B981;
+            --warning-color: #F59E0B;
+            --danger-color: #EF4444;
             --bg-color: #111827;
             --text-color: #F9FAFB;
             --border-color: #374151;
+            --card-bg: #1F2937;
         }
         
         * {
@@ -50,9 +57,44 @@
         .header p {
             color: #9CA3AF;
         }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+        
+        .metric-card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        .metric-card h3 {
+            color: #9CA3AF;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-change {
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+        }
         
         .chart-section {
-            background: #1F2937;
+            background: var(--card-bg);
             border-radius: 1rem;
             padding: 2rem;
             margin-bottom: 3rem;
@@ -65,13 +107,52 @@
             color: #E5E7EB;
         }
         
-        .chart {
-            width: 100%;
-            max-width: 900px;
-            margin: 0 auto;
-            display: block;
-            border-radius: 0.5rem;
+        .insights-section {
+            margin-bottom: 3rem;
         }
+        
+        .insight-card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .insight-card.positive {
+            border-left-color: var(--success-color);
+        }
+        
+        .insight-card.negative {
+            border-left-color: var(--danger-color);
+        }
+        
+        .insight-card.warning {
+            border-left-color: var(--warning-color);
+        }
+        
+        .insight-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .insight-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #E5E7EB;
+        }
+        
+        .trend-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .trend-up { color: var(--success-color); }
+        .trend-down { color: var(--danger-color); }
         
         .posts-section {
             display: grid;
@@ -79,7 +160,7 @@
         }
         
         .post-card {
-            background: #1F2937;
+            background: var(--card-bg);
             border-radius: 1rem;
             padding: 1.5rem;
             border: 1px solid var(--border-color);
@@ -123,6 +204,7 @@
             background: #374151;
             border-radius: 0.5rem;
             padding: 1rem;
+            margin-top: 1rem;
         }
         
         .comment {
@@ -134,12 +216,22 @@
             border-bottom: none;
         }
         
-        .comment-text {
-            color: #E5E7EB;
-            margin-bottom: 0.25rem;
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
         }
         
-        .comment-type {
+        .badge.success { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+        .badge.warning { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+        .badge.danger { background: rgba(239, 68, 68, 0.1); color: #EF4444; }
+        
+        .report-footer {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
             color: #9CA3AF;
             font-size: 0.875rem;
         }
@@ -164,41 +256,135 @@
         <header class="header">
             <h1>InsightHub Analytics</h1>
             <p>Reporte detallado de engagement y análisis de contenido</p>
+            <p class="text-gray-400 mt-2">Generado el {{ generated_date }}</p>
         </header>
 
+        <!-- Métricas Principales -->
+        <section class="metrics-grid">
+            <div class="metric-card">
+                <h3>Total Posts</h3>
+                <div class="metric-value">{{ analytics.summary.total_posts }}</div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>Engagement Promedio</h3>
+                <div class="metric-value">{{ "%.1f"|format(analytics.summary.avg_engagement) }}%</div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>Total Comentarios</h3>
+                <div class="metric-value">{{ analytics.summary.total_comments }}</div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>Sentimiento General</h3>
+                <div class="metric-value">
+                    {% set positive = analytics.summary.sentiment_breakdown.positive %}
+                    {% set total = analytics.summary.total_comments %}
+                    {{ "%.1f"|format((positive / total * 100) if total > 0 else 0) }}%
+                    <span class="badge success">Positivo</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Gráficos de Análisis -->
         {% if chart_img %}
         <section class="chart-section">
-            <h2>Análisis de Engagement</h2>
-            <img src="{{ chart_img }}" alt="Gráfico de Engagement" class="chart">
+            <h2>Análisis de Engagement y Tendencias</h2>
+            <img src="{{ chart_img }}" alt="Gráfico de Engagement" style="width: 100%; height: auto;">
         </section>
         {% endif %}
 
+        <!-- Insights -->
+        <section class="insights-section">
+            <h2>Insights Clave</h2>
+            {% for insight in analytics.insights %}
+            <div class="insight-card {{ insight.tipo }}">
+                <div class="insight-header">
+                    <h3 class="insight-title">{{ insight.titulo }}</h3>
+                    <div class="trend-indicator {{ 'trend-up' if insight.tendencia > 0 else 'trend-down' }}">
+                        {{ "%.1f"|format(insight.tendencia)|abs }}%
+                        {% if insight.tendencia > 0 %}↑{% else %}↓{% endif %}
+                    </div>
+                </div>
+                <p>{{ insight.descripcion }}</p>
+            </div>
+            {% endfor %}
+        </section>
+
+        <!-- Top Performing Content -->
+        {% if analytics.top_content %}
+        <section class="chart-section">
+            <h2>Contenido Más Exitoso</h2>
+            <div class="post-card">
+                <div class="post-header">
+                    <h3 class="post-title">{{ analytics.top_content.title }}</h3>
+                    <span class="post-date">{{ analytics.top_content.date }}</span>
+                </div>
+                <div class="metric-value">
+                    {{ analytics.top_content.engagement }}% Engagement
+                </div>
+                {% if analytics.top_content.comments %}
+                <div class="comments-section">
+                    <h4>Comentarios Destacados</h4>
+                    {% for comment in analytics.top_content.comments[:3] %}
+                    <div class="comment">
+                        <p class="comment-text">{{ comment.text }}</p>
+                        <span class="badge {{ comment.type }}">{{ comment.type|title }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Posts Timeline -->
         <section class="posts-section">
-            {% for post in results %}
+            <h2>Análisis de Posts</h2>
+            {% for post in analytics.posts %}
             <article class="post-card">
                 <div class="post-header">
                     <h3 class="post-title">{{ post.title }}</h3>
                     <span class="post-date">{{ post.date }}</span>
                 </div>
 
-                <div class="engagement-stats">
-                    <strong>Engagement:</strong>
-                    <span>{{ post.engagement }}%</span>
+                <div class="metrics-grid" style="margin: 1rem 0;">
+                    <div class="metric-card">
+                        <h3>Engagement</h3>
+                        <div class="metric-value">{{ post.engagement }}%</div>
+                    </div>
+                    {% if post.views is defined %}
+                    <div class="metric-card">
+                        <h3>Visualizaciones</h3>
+                        <div class="metric-value">{{ post.views }}</div>
+                    </div>
+                    {% endif %}
                 </div>
 
                 {% if post.comments %}
                 <div class="comments-section">
-                    {% for comment in post.comments %}
+                    <h4>Comentarios ({{ post.comments|length }})</h4>
+                    {% for comment in post.comments[:5] %}
                     <div class="comment">
                         <p class="comment-text">{{ comment.text }}</p>
-                        <span class="comment-type">{{ comment.type }}</span>
+                        <span class="badge {{ comment.type }}">{{ comment.type|title }}</span>
                     </div>
                     {% endfor %}
+                    {% if post.comments|length > 5 %}
+                    <div class="text-center" style="margin-top: 1rem; color: #9CA3AF;">
+                        + {{ post.comments|length - 5 }} comentarios más
+                    </div>
+                    {% endif %}
                 </div>
                 {% endif %}
             </article>
             {% endfor %}
         </section>
+
+        <footer class="report-footer">
+            <p>Generado por InsightHub Analytics - {{ generated_date }}</p>
+        </footer>
     </div>
 </body>
 </html>

@@ -5,10 +5,13 @@ import urllib.error
 import urllib.request
 import json
 import yaml
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import defaultdict
+import numpy as np
+from typing import Dict, List
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, render_template
 from flask_swagger_ui import get_swaggerui_blueprint
 from config.logger import setup_logging, log_time, log_exceptions
 from prometheus_client import Counter, Histogram, start_http_server
@@ -18,6 +21,136 @@ app = Flask(__name__)
 
 # Setup logging
 logger = setup_logging()
+
+# Configuración de análisis de sentimiento
+SENTIMENT_THRESHOLDS = {
+    "muy_positivo": 0.8,
+    "positivo": 0.6,
+    "neutral": 0.4,
+    "negativo": 0.2
+}
+
+def calculate_engagement_rate(interactions: int, followers: int) -> float:
+    """Calcula el engagement rate."""
+    return (interactions / followers * 100) if followers > 0 else 0
+
+def get_sentiment_class(sentiment_score: float) -> tuple:
+    """Determina la clase y texto del sentimiento basado en el score."""
+    if sentiment_score >= SENTIMENT_THRESHOLDS["muy_positivo"]:
+        return "success", "Muy Positivo"
+    elif sentiment_score >= SENTIMENT_THRESHOLDS["positivo"]:
+        return "success", "Positivo"
+    elif sentiment_score >= SENTIMENT_THRESHOLDS["neutral"]:
+        return "warning", "Neutral"
+    elif sentiment_score >= SENTIMENT_THRESHOLDS["negativo"]:
+        return "danger", "Negativo"
+    return "danger", "Muy Negativo"
+
+def analyze_profile_metrics(social_data: Dict) -> Dict:
+    """Analiza las métricas del perfil y genera insights."""
+    total_followers = sum(platform["followers"] for platform in social_data.values())
+    total_engagement = sum(platform["engagement"] for platform in social_data.values())
+    avg_sentiment = np.mean([platform["sentiment"] for platform in social_data.values()])
+    
+    return {
+        "seguidores_totales": total_followers,
+        "engagement_total": total_engagement,
+        "sentimiento_promedio": avg_sentiment
+    }
+
+def generate_insights(metrics: Dict, historical_data: Dict) -> List[Dict]:
+    """Genera insights basados en los datos actuales e históricos."""
+    insights = []
+    
+    # Análisis de crecimiento de seguidores
+    follower_growth = (metrics["seguidores_totales"] - historical_data["seguidores_previos"]) / historical_data["seguidores_previos"] * 100
+    if follower_growth > 5:
+        insights.append({
+            "tipo": "positive",
+            "titulo": "Crecimiento Significativo",
+            "descripcion": f"Tu audiencia creció un {follower_growth:.1f}% este mes",
+            "tendencia": follower_growth,
+            "periodo": "vs mes anterior"
+        })
+    
+    # Análisis de engagement
+    if metrics["engagement_total"] > historical_data["engagement_promedio"]:
+        improvement = ((metrics["engagement_total"] / historical_data["engagement_promedio"]) - 1) * 100
+        insights.append({
+            "tipo": "positive",
+            "titulo": "Mejora en Engagement",
+            "descripcion": "El engagement ha mejorado significativamente",
+            "tendencia": improvement,
+            "periodo": "vs promedio histórico"
+        })
+    
+    # Análisis de sentimiento
+    sentiment_change = metrics["sentimiento_promedio"] - historical_data["sentimiento_previo"]
+    if abs(sentiment_change) > 0.1:
+        insights.append({
+            "tipo": "warning" if sentiment_change < 0 else "positive",
+            "titulo": "Cambio en Sentimiento",
+            "descripcion": "Se detectó un cambio significativo en el sentimiento de la audiencia",
+            "tendencia": sentiment_change * 100,
+            "periodo": "vs mes anterior"
+        })
+    
+    return insights
+
+def process_social_data(profile_data: Dict) -> Dict:
+    """Procesa los datos de redes sociales y genera métricas agregadas."""
+    
+    # Datos simulados históricos (en una implementación real, vendrían de una base de datos)
+    historical_data = {
+        "seguidores_previos": 50000,
+        "engagement_promedio": 3.5,
+        "sentimiento_previo": 0.65
+    }
+    
+    # Procesar métricas actuales
+    current_metrics = analyze_profile_metrics(profile_data)
+    
+    # Generar insights
+    insights = generate_insights(current_metrics, historical_data)
+    
+    # Procesar datos por red social
+    redes_sociales = []
+    for platform, data in profile_data.items():
+        sentiment_class, sentiment_text = get_sentiment_class(data["sentiment"])
+        redes_sociales.append({
+            "nombre": platform.capitalize(),
+            "seguidores": data["followers"],
+            "engagement": calculate_engagement_rate(data["engagement"], data["followers"]),
+            "cambio_engagement": ((data["engagement"] / historical_data["engagement_promedio"]) - 1) * 100,
+            "posts": data["posts"],
+            "mejor_horario": data["best_time"],
+            "sentimiento_clase": sentiment_class,
+            "sentimiento_texto": sentiment_text
+        })
+    
+    # Datos temporales para gráficos (simulados)
+    fechas = [(datetime.now() - timedelta(days=x)).strftime('%Y-%m-%d') for x in range(30, 0, -1)]
+    engagement_data = [round(random.uniform(2.0, 5.0), 2) for _ in range(30)]
+    alcance_data = [int(random.uniform(5000, 15000)) for _ in range(30)]
+    
+    return {
+        "metricas": {
+            "seguidores_totales": current_metrics["seguidores_totales"],
+            "cambio_seguidores": ((current_metrics["seguidores_totales"] / historical_data["seguidores_previos"]) - 1) * 100,
+            "engagement_rate": current_metrics["engagement_total"],
+            "cambio_engagement": ((current_metrics["engagement_total"] / historical_data["engagement_promedio"]) - 1) * 100,
+            "alcance_promedio": sum(alcance_data) / len(alcance_data),
+            "cambio_alcance": 15.5,  # Simulado
+            "sentimiento_promedio": current_metrics["sentimiento_promedio"] * 100,
+            "sentimiento_clase": get_sentiment_class(current_metrics["sentimiento_promedio"])[0],
+            "sentimiento_texto": get_sentiment_class(current_metrics["sentimiento_promedio"])[1]
+        },
+        "insights": insights,
+        "redes_sociales": redes_sociales,
+        "fechas": fechas,
+        "engagement_data": engagement_data,
+        "alcance_data": alcance_data
+    }
 
 # Swagger UI Configuration
 SWAGGER_URL = '/api/docs'
@@ -543,17 +676,95 @@ def report():
             logger.error("No data provided for report generation")
             return "No data provided", 400
 
-        data = json.loads(request.form.get("data"))
+        raw_data = json.loads(request.form.get("data"))
 
-        # Generate chart for the report
-        chart_img = generate_engagement_chart(data)
+        # Process data and add rich analytics
+        analytics_data = {
+            "posts": raw_data,
+            "summary": {
+                "total_posts": len(raw_data),
+                "total_engagement": sum(post.get("engagement", 0) for post in raw_data),
+                "total_comments": sum(len(post.get("comments", [])) for post in raw_data),
+                "platforms": defaultdict(int),  # For tracking platform distribution
+                "sentiment_breakdown": defaultdict(int)  # For sentiment analysis
+            },
+            "trends": {
+                "dates": [post.get("date") for post in raw_data],
+                "engagement_data": [post.get("engagement") for post in raw_data],
+                "views_data": [post.get("views", 0) for post in raw_data]
+            }
+        }
 
-        html = render_template(
-            "report_template.html", results=data, chart_img=chart_img
+        # Calculate averages and trends
+        analytics_data["summary"]["avg_engagement"] = (
+            analytics_data["summary"]["total_engagement"] / len(raw_data) 
+            if raw_data else 0
         )
 
+        # Process sentiment data
+        for post in raw_data:
+            for comment in post.get("comments", []):
+                sentiment = comment.get("type", "neutral")
+                analytics_data["summary"]["sentiment_breakdown"][sentiment] += 1
+
+        # Find top performing content
+        if raw_data:
+            analytics_data["top_content"] = max(
+                raw_data, 
+                key=lambda x: x.get("engagement", 0)
+            )
+
+        # Generate insights
+        insights = []
+        if len(raw_data) > 1:
+            # Engagement trend
+            current_engagement = analytics_data["trends"]["engagement_data"][-1]
+            prev_engagement = analytics_data["trends"]["engagement_data"][-2]
+            engagement_change = ((current_engagement - prev_engagement) / prev_engagement * 100 
+                               if prev_engagement else 0)
+            
+            insights.append({
+                "tipo": "positive" if engagement_change > 0 else "negative",
+                "titulo": "Tendencia de Engagement",
+                "descripcion": (
+                    f"El engagement {'aumentó' if engagement_change > 0 else 'disminuyó'} "
+                    f"un {abs(engagement_change):.1f}%"
+                ),
+                "tendencia": engagement_change
+            })
+
+            # Sentiment trend insight
+            sentiment_data = analytics_data["summary"]["sentiment_breakdown"]
+            total_sentiments = sum(sentiment_data.values())
+            if total_sentiments > 0:
+                positive_ratio = (sentiment_data.get("positive", 0) / total_sentiments) * 100
+                insights.append({
+                    "tipo": "positive" if positive_ratio > 50 else "warning",
+                    "titulo": "Análisis de Sentimiento",
+                    "descripcion": f"{positive_ratio:.1f}% de comentarios son positivos",
+                    "tendencia": positive_ratio
+                })
+
+        analytics_data["insights"] = insights
+
+        # Generate chart using the enhanced data
+        chart_img = generate_engagement_chart(raw_data)
+
+        # Render the template with rich analytics data
+        html = render_template(
+            "report_template.html",
+            analytics=analytics_data,
+            chart_img=chart_img,
+            generated_date=datetime.now().strftime("%Y-%m-%d %H:%M")
+        )
+
+        # Generate PDF
         pdf = io.BytesIO()
-        pisa_status = pisa.CreatePDF(html, dest=pdf)
+        pisa_status = pisa.CreatePDF(
+            html,
+            dest=pdf,
+            encoding='utf-8'
+        )
 
         if pisa_status.err:
             logger.error(f"Error creating PDF: {pisa_status.err}")
@@ -565,9 +776,10 @@ def report():
         return send_file(
             pdf,
             mimetype="application/pdf",
-            download_name=f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-            as_attachment=True,
+            download_name=f"social_media_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            as_attachment=True
         )
+
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON data for report: {str(e)}")
         return "Invalid data format", 400
