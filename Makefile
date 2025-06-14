@@ -1,5 +1,6 @@
 .PHONY: install test clean run docker-build docker-run docker-compose-up docker-compose-down \
-	coverage security-check build-docs serve-docs help backup monitor update-deps api-docs validate-api
+	coverage security-check build-docs serve-docs help backup monitor update-deps api-docs validate-api \
+	check-ports kill-port ensure-deps clean-ports
 
 install: ## Instalar dependencias del proyecto
 	./scripts/install.sh
@@ -30,8 +31,47 @@ clean: ## Limpiar archivos temporales y compilados
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
 	find . -type f -name ".coverage" -delete
 
-run: ## Ejecutar aplicación en modo desarrollo
-	python app.py
+clean-ports: ## Limpiar puertos usados por la aplicación
+	@echo "Limpiando puertos..."
+	@for port in 8000 8001 8002 8003; do \
+		pid=$$(lsof -ti :$$port 2>/dev/null); \
+		if [ ! -z "$$pid" ]; then \
+			echo "Liberando puerto $$port (PID: $$pid)..."; \
+			kill -9 $$pid 2>/dev/null || true; \
+			sleep 1; \
+		fi; \
+	done
+	@echo "Puertos limpiados"
+
+ensure-deps: ## Asegurar que todas las dependencias están instaladas
+	@command -v gunicorn >/dev/null 2>&1 || { \
+		echo "Instalando gunicorn y otras dependencias..."; \
+		pip install -r requirements.txt; \
+	}
+
+run: clean-ports ensure-deps ## Ejecutar aplicación en modo desarrollo
+	@echo "Iniciando aplicación..."
+	@if ! gunicorn app:app \
+		--bind 0.0.0.0:8000 \
+		--worker-class gthread \
+		--threads 4 \
+		--workers 4 \
+		--log-level info \
+		--access-logfile - \
+		--error-logfile - \
+		--capture-output; then \
+		echo "Error al iniciar la aplicación. Intentando limpiar puertos nuevamente..."; \
+		make clean-ports; \
+		gunicorn app:app \
+			--bind 0.0.0.0:8000 \
+			--worker-class gthread \
+			--threads 4 \
+			--workers 4 \
+			--log-level info \
+			--access-logfile - \
+			--error-logfile - \
+			--capture-output; \
+	fi
 
 docker-build: ## Construir imagen Docker
 	docker build -t insighthub .
@@ -66,6 +106,20 @@ api-docs: ## Ver documentación de la API
 
 validate-api: ## Validar especificación OpenAPI
 	yamllint static/swagger/openapi.yaml
+
+check-ports: ## Verificar puertos en uso
+	@echo "Verificando puerto 8000..."
+	@lsof -i :8000 || echo "Puerto 8000 disponible"
+	@echo "Verificando puerto 8001 (Prometheus)..."
+	@lsof -i :8001 || echo "Puerto 8001 disponible"
+
+kill-port: ## Matar proceso en puerto específico (usar como: make kill-port PORT=8001)
+	@if [ "$(PORT)" = "" ]; then \
+		echo "Especifica un puerto: make kill-port PORT=8001"; \
+		exit 1; \
+	fi
+	@echo "Intentando liberar puerto $(PORT)..."
+	@lsof -ti :$(PORT) | xargs kill -9 2>/dev/null || echo "Puerto $(PORT) ya está libre"
 
 help: ## Mostrar este mensaje de ayuda
 	@echo "Comandos disponibles:"

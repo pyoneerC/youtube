@@ -9,7 +9,7 @@ fastapi
 flake8
 # Web Framework y dependencias relacionadas
 Flask
-gunicorn
+gunicorn>=21.0.0
 Werkzeug
 flask-swagger-ui
 
