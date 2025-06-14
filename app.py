@@ -1,6 +1,7 @@
 import re
 import ssl
 import time
+import os
 import urllib.error
 import urllib.request
 import json
@@ -11,13 +12,17 @@ import numpy as np
 from typing import Dict, List
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from flask import Flask, jsonify, request, send_from_directory, render_template
+from flask import Flask, jsonify, request, send_from_directory, render_template, redirect, session
 from flask_swagger_ui import get_swaggerui_blueprint
 from config.logger import setup_logging, log_time, log_exceptions
 from prometheus_client import Counter, Histogram, start_http_server
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Setup secure session
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+app.permanent_session_lifetime = timedelta(hours=2)
 
 # Setup logging
 logger = setup_logging()
@@ -543,18 +548,34 @@ def login():
     password = request.form["password"]
 
     if user == VALID_USER and password == VALID_PASS:
+        # Set permanent session
+        session.permanent = True
         session["user"] = user
+        session["logged_in"] = True
+        session["last_activity"] = datetime.now().timestamp()
+        logger.info(f"User {user} logged in successfully")
         return redirect("/dashboard")
     else:
+        logger.warning(f"Failed login attempt for user: {user}")
         return render_template("login.html", error="Invalid credentials")
 
 
 @app.route("/dashboard")
 def dashboard():
-    if "user" not in session:
+    if not session.get('logged_in'):
+        logger.warning("Unauthorized access attempt to dashboard")
         return redirect("/")
+    
+    # Update session activity
+    session["last_activity"] = datetime.now().timestamp()
+    session.modified = True
+    
     return render_template(
-        "dashboard.html", user=session["user"], results=[], social_media_results=[]
+        "dashboard.html", 
+        user=session["user"], 
+        results=[], 
+        social_media_results=[],
+        logged_in=True
     )
 
 
@@ -809,15 +830,26 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)
 
 @app.before_request
 def check_session_timeout():
-    if "user" in session:
-        if "last_activity" not in session:
-            session["last_activity"] = datetime.now().timestamp()
-        else:
-            last_activity = datetime.fromtimestamp(session["last_activity"])
-            if datetime.now() - last_activity > timedelta(minutes=30):
-                session.clear()
-                return redirect("/")
+    # Skip session check for static files and login page
+    if request.endpoint == 'static' or request.path == '/' or request.path == '/login':
+        return
+
+    if not session.get('logged_in'):
+        logger.debug("No active session found")
+        return redirect('/')
+
+    if "last_activity" not in session:
         session["last_activity"] = datetime.now().timestamp()
+    else:
+        last_activity = datetime.fromtimestamp(session["last_activity"])
+        if datetime.now() - last_activity > timedelta(minutes=120):  # 2 hours timeout
+            logger.info(f"Session timed out for user: {session.get('user')}")
+            session.clear()
+            return redirect('/')
+        
+    # Update last activity timestamp
+    session["last_activity"] = datetime.now().timestamp()
+    session.modified = True
 
 
 # --- YouTube API Functions ---
