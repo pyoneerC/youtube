@@ -5,20 +5,98 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>InsightHub Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    :root {
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      --secondary-gradient: linear-gradient(135deg, #3b82f6 0%, #2dd4bf 100%);
+    }
+    
     body {
-      background: radial-gradient(circle, #777 0%, #000 100%);
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+    }
+
+    .glass-effect {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .animate-gradient {
+      background-size: 200% 200%;
+      animation: gradient 5s ease infinite;
+    }
+
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
     }
   </style>
 </head>
-<body class="min-h-screen text-white flex flex-col items-center justify-center gap-12 px-4 py-8">
+<body class="min-h-screen text-white" x-data="{ menuOpen: false }">
+  <!-- Sidebar -->
+  <nav class="fixed top-0 left-0 h-full w-64 glass-effect transform transition-transform duration-200 ease-in-out" 
+       :class="{'translate-x-0': menuOpen, '-translate-x-64': !menuOpen}">
+    <div class="p-6">
+      <div class="flex items-center gap-3 mb-8">
+        <i class="fas fa-chart-line text-2xl text-indigo-500"></i>
+        <span class="text-xl font-bold">InsightHub</span>
+      </div>
+      
+      <ul class="space-y-4">
+        <li>
+          <a href="#analytics" class="flex items-center gap-3 text-gray-300 hover:text-white transition">
+            <i class="fas fa-chart-bar"></i>
+            <span>Analytics</span>
+          </a>
+        </li>
+        <li>
+          <a href="#social" class="flex items-center gap-3 text-gray-300 hover:text-white transition">
+            <i class="fas fa-share-alt"></i>
+            <span>Social Check</span>
+          </a>
+        </li>
+        <li>
+          <a href="#reports" class="flex items-center gap-3 text-gray-300 hover:text-white transition">
+            <i class="fas fa-file-alt"></i>
+            <span>Reports</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
 
-  <div class="flex justify-between items-center w-full max-w-4xl mx-auto mb-8">
-    <h1 class="text-4xl font-bold text-gray-200">Welcome, {{ user }}!</h1>
-    <a href="/logout" class="px-4 py-2 rounded-full bg-red-600 text-white font-bold hover:bg-red-700 transition">
-      Logout
-    </a>
-  </div>
+  <!-- Main Content -->
+  <div class="ml-0 transition-margin duration-200 ease-in-out" :class="{'ml-64': menuOpen}">
+    <!-- Top Bar -->
+    <header class="glass-effect sticky top-0 z-50 border-b border-gray-800">
+      <div class="container mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <button @click="menuOpen = !menuOpen" class="text-gray-300 hover:text-white">
+            <i class="fas fa-bars text-xl"></i>
+          </button>
+          
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <i class="fas fa-user-circle text-xl text-indigo-500"></i>
+              <span class="font-medium">{{ user }}</span>
+            </div>
+            <a href="/logout" class="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition">
+              <i class="fas fa-sign-out-alt"></i>
+              <span>Logout</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="container mx-auto px-6 py-8">
 
   {% if error %}
     <div class="w-full max-w-4xl mx-auto mb-6">
@@ -28,263 +106,424 @@
     </div>
   {% endif %}
 
-  <!-- Content Analysis Form -->
-  <form method="POST" action="/analyze" class="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6 items-center w-full max-w-4xl justify-center p-4 bg-gray-900 rounded-lg shadow-lg">
-    <h2 class="text-xl font-semibold w-full text-center sm:w-auto sm:mb-0 mb-4">Content Analysis</h2>
-    <input
-      type="text"
-      name="search"
-      placeholder="Search Keyword"
-      class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-full sm:w-auto md:flex-grow"
-      required
-    />
-    <select
-      name="channel"
-      class="px-4 py-3 rounded-2xl bg-gray-800 text-white w-full sm:w-auto md:w-40 focus:outline-none"
-      required
-    >
-      <option value="" disabled selected>Select Channel</option>
-      <option value="youtube">YouTube</option>
-      <option value="tiktok">TikTok</option> <!-- Note: Backend currently only processes YouTube for this form -->
-    </select>
-    <input
-      type="date"
-      name="start_date"
-      class="px-4 py-3 rounded-xl bg-gray-800 text-white w-full sm:w-auto md:w-48 focus:outline-none"
-      required
-    >
-    <input
-      type="date"
-      name="end_date"
-      class="px-4 py-3 rounded-xl bg-gray-800 text-white w-full sm:w-auto md:w-48 focus:outline-none"
-      required
-    >
-    <input
-      type="number"
-      name="max_videos"
-      placeholder="Max Videos"
-      min="1"
-      max="5"
-      value="3"
-      class="px-4 py-3 rounded-xl bg-gray-800 text-white w-full sm:w-auto md:w-36 focus:outline-none"
-      required
-    >
-    <button
-      type="submit"
-      class="px-6 py-3 rounded-full bg-blue-600 text-white font-bold hover:bg-blue-700 transition w-full sm:w-auto"
-    >
-      Analyze
-    </button>
-  </form>
+      {% if error %}
+        <div class="mb-6 animate-fade-in">
+          <div class="glass-effect p-4 rounded-lg border border-red-500/30 flex items-center gap-3">
+            <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+            <p class="text-red-400">{{ error }}</p>
+          </div>
+        </div>
+      {% endif %}
 
-  <!-- Social Media Check Form -->
-  <form method="POST" action="/check_social" class="flex flex-col sm:flex-row gap-6 items-center w-full max-w-4xl justify-center p-4 bg-gray-900 rounded-lg shadow-lg mt-8">
-    <h2 class="text-xl font-semibold w-full text-center sm:w-auto">Social Media Profile Check</h2>
-    <input
-      type="text"
-      name="social_username"
-      placeholder="Enter Username"
-      class="px-6 py-3 rounded-full bg-gray-800 placeholder-white text-white focus:outline-none w-full sm:flex-grow"
-      required
-    />
-    <button
-      type="submit"
-      class="px-6 py-3 rounded-full bg-purple-600 text-white font-bold hover:bg-purple-700 transition w-full sm:w-auto"
-    >
-      Check Profiles
-    </button>
-  </form>
+      <!-- Analytics Card -->
+      <div id="analytics" class="glass-effect rounded-xl mb-8">
+        <div class="p-6 border-b border-gray-800">
+          <h2 class="text-xl font-semibold flex items-center gap-3">
+            <i class="fas fa-chart-line text-indigo-500"></i>
+            Content Analysis
+          </h2>
+        </div>
+        
+        <form method="POST" action="/analyze" class="p-6 space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="space-y-2">
+              <label class="text-sm text-gray-400">Search Keyword</label>
+              <div class="relative">
+                <i class="fas fa-search absolute left-4 top-3.5 text-gray-400"></i>
+                <input
+                  type="text"
+                  name="search"
+                  placeholder="Enter keyword..."
+                  class="pl-10 w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700 placeholder-gray-500 text-white focus:outline-none focus:border-indigo-500 transition"
+                  required
+                />
+              </div>
+            </div>
 
-{% if results and results|length > 0 %}
-  <div class="mt-12 w-full max-w-3xl space-y-6">
-    <h2 class="text-2xl font-bold text-gray-200">
+            <div class="space-y-2">
+              <label class="text-sm text-gray-400">Platform</label>
+              <div class="relative">
+                <i class="fas fa-tv absolute left-4 top-3.5 text-gray-400"></i>
+                <select
+                  name="channel"
+                  class="pl-10 w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700 text-white focus:outline-none focus:border-indigo-500 transition appearance-none"
+                  required
+                >
+                  <option value="" disabled selected>Select Platform</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="tiktok">TikTok</option>
+                </select>
+                <i class="fas fa-chevron-down absolute right-4 top-3.5 text-gray-400 pointer-events-none"></i>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-sm text-gray-400">Date Range</label>
+              <div class="flex gap-4">
+                <div class="relative flex-1">
+                  <i class="far fa-calendar absolute left-4 top-3.5 text-gray-400"></i>
+                  <input
+                    type="date"
+                    name="start_date"
+                    class="pl-10 w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700 text-white focus:outline-none focus:border-indigo-500 transition"
+                    required
+                  >
+                </div>
+                <div class="relative flex-1">
+                  <i class="far fa-calendar absolute left-4 top-3.5 text-gray-400"></i>
+                  <input
+                    type="date"
+                    name="end_date"
+                    class="pl-10 w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700 text-white focus:outline-none focus:border-indigo-500 transition"
+                    required
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-sm text-gray-400">Max Videos</label>
+              <div class="relative">
+                <i class="fas fa-hashtag absolute left-4 top-3.5 text-gray-400"></i>
+                <input
+                  type="number"
+                  name="max_videos"
+                  placeholder="Max Videos"
+                  min="1"
+                  max="5"
+                  value="3"
+                  class="pl-10 w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700 placeholder-gray-500 text-white focus:outline-none focus:border-indigo-500 transition"
+                  required
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              class="px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium flex items-center gap-2 transition transform hover:scale-105"
+            >
+              <i class="fas fa-chart-bar"></i>
+              Analyze Content
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Social Media Check Card -->
+      <div id="social" class="glass-effect rounded-xl mb-8">
+        <div class="p-6 border-b border-gray-800">
+          <h2 class="text-xl font-semibold flex items-center gap-3">
+            <i class="fas fa-share-alt text-blue-500"></i>
+            Social Media Profile Check
+          </h2>
+        </div>
+        
+        <form method="POST" action="/check_social" class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-2 space-y-2">
+              <label class="text-sm text-gray-400">Username</label>
+              <div class="relative">
+                <i class="fas fa-at absolute left-4 top-3.5 text-gray-400"></i>
+                <input
+                  type="text"
+                  name="social_username"
+                  placeholder="Enter username to check..."
+                  class="pl-10 w-full px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-700 placeholder-gray-500 text-white focus:outline-none focus:border-blue-500 transition"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="flex items-end">
+              <button
+                type="submit"
+                class="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium flex items-center gap-2 justify-center transition transform hover:scale-105"
+              >
+                <i class="fas fa-search"></i>
+                Check Profiles
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Results Section -->
+      {% if results and results|length > 0 %}
+      <div class="glass-effect rounded-xl mb-8">
+        <div class="p-6 border-b border-gray-800">
+          <h2 class="text-xl font-semibold flex items-center gap-3">
+            <i class="fas fa-chart-pie text-green-500"></i>
+            Analysis Results
       Content Analysis Results for "{{ keyword }}" on {{ channel.title() }} ({{ start }} to {{ end }})
     </h2>
+        </div>
 
-    <ul class="space-y-4">
-      {% for post in results %}
-        <li class="bg-gray-800 p-4 rounded-xl shadow-md">
-          <h3 class="text-lg font-semibold">{{ post.title }} ({{ post.date }})</h3>
-          <p class="text-gray-300">
-            <a href="{{ post.url }}" target="_blank" class="text-blue-400 hover:underline">View on YouTube</a>
-          </p>
-          <p>📈 Engagement (Likes): {{ post.engagement }}</p> <!-- Corrected: Removed % as it's a count -->
-          {% if post.comments and post.comments|length > 0 %}
-            <p class="mt-2">💬 Comments:</p>
-            <ul class="ml-4 list-disc text-sm space-y-1">
-              {% for c in post.comments %}
-                <li>
-                  <span class="
-                    {% if c.type == 'positive' %}text-green-400
-                    {% elif c.type == 'negative' %}text-red-400
-                    {% elif c.type == 'suggestion' %}text-yellow-400
-                    {% else %}text-gray-400{% endif %}
-                  ">[{{ c.type|title }}]</span>
-                  {{ c.text }}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="mt-2 text-gray-500">No comments found for this post.</p>
-          {% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  </div>
-{% elif keyword %} {# Show if a search was attempted but no results #}
-  <div class="mt-12 w-full max-w-3xl">
-    <h2 class="text-2xl font-bold text-gray-200">
-      Content Analysis Results
-    </h2>
-    <p class="text-gray-400">No content found for "{{ keyword }}" on {{ channel.title() }} within the selected date range ({{ start }} to {{ end }}).</p>
-  </div>
-{% endif %}
+        <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Summary Stats -->
+          <div class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="glass-effect rounded-lg p-4 flex items-center gap-4">
+              <div class="rounded-full p-3 bg-green-500/10 text-green-500">
+                <i class="fas fa-eye text-xl"></i>
+              </div>
+              <div>
+                <h3 class="text-sm text-gray-400">Total Views</h3>
+                <p class="text-2xl font-semibold">{{ analytics.views|default(0)|format_number }}</p>
+              </div>
+            </div>
 
-{% if social_media_results %}
-  <div class="mt-12 w-full max-w-3xl space-y-6">
-    <h2 class="text-2xl font-bold text-gray-200">
-      Social Media Check Results for '{{ checked_username }}'
-    </h2>
-    <div class="overflow-x-auto bg-gray-900 rounded-lg shadow-md">
-      <table class="w-full text-left table-auto border-collapse">
-        <thead>
-          <tr class="bg-gray-700">
-            <th class="px-4 py-3 border-b border-gray-600">Platform</th>
-            <th class="px-4 py-3 border-b border-gray-600">Status</th>
-            <th class="px-4 py-3 border-b border-gray-600">URL / Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in social_media_results %}
-            <tr class="{% if loop.index0 % 2 == 0 %}bg-gray-800{% else %}bg-gray-750{% endif %} hover:bg-gray-700 transition-colors">
-              <td class="px-4 py-3 border-b border-gray-600">{{ row.platform }}</td>
-              <td class="px-4 py-3 border-b border-gray-600 font-semibold {% if row.status_color == 'green' %}text-green-400{% else %}text-red-400{% endif %}">
-                {{ row.status }}
-              </td>
-              <td class="px-4 py-3 border-b border-gray-600 text-sm">
-                {% if row.status == 'Real Profile' and row.url_display != 'N/A' %}
-                  <a href="{{ row.url_display }}" target="_blank" class="text-blue-400 hover:underline break-all">{{ row.url_display }}</a>
-                {% else %}
-                  {{ row.reason }}
+            <div class="glass-effect rounded-lg p-4 flex items-center gap-4">
+              <div class="rounded-full p-3 bg-blue-500/10 text-blue-500">
+                <i class="fas fa-comments text-xl"></i>
+              </div>
+              <div>
+                <h3 class="text-sm text-gray-400">Comments</h3>
+                <p class="text-2xl font-semibold">{{ analytics.total_comments|default(0)|format_number }}</p>
+              </div>
+            </div>
+
+            <div class="glass-effect rounded-lg p-4 flex items-center gap-4">
+              <div class="rounded-full p-3 bg-purple-500/10 text-purple-500">
+                <i class="fas fa-heart text-xl"></i>
+              </div>
+              <div>
+                <h3 class="text-sm text-gray-400">Engagement Rate</h3>
+                <p class="text-2xl font-semibold">{{ "%.1f"|format(analytics.engagement_rate|default(0)) }}%</p>
+              </div>
+            </div>
+
+            <div class="glass-effect rounded-lg p-4 flex items-center gap-4">
+              <div class="rounded-full p-3 bg-yellow-500/10 text-yellow-500">
+                <i class="fas fa-star text-xl"></i>
+              </div>
+              <div>
+                <h3 class="text-sm text-gray-400">Sentiment Score</h3>
+                <p class="text-2xl font-semibold">{{ "%.1f"|format(analytics.sentiment_score|default(0)) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Content Analysis -->
+          <div class="lg:col-span-2">
+            <div class="space-y-6">
+              {% for post in results %}
+              <div class="glass-effect rounded-lg p-4 space-y-4">
+                <div class="flex justify-between items-start">
+                  <h3 class="font-medium text-lg">{{ post.title }}</h3>
+                  <span class="text-sm text-gray-400">{{ post.date }}</span>
+                </div>
+                
+                <div class="flex gap-4 text-sm">
+                  <span class="flex items-center gap-2">
+                    <i class="fas fa-heart text-red-500"></i>
+                    {{ post.engagement }}
+                  </span>
+                  <span class="flex items-center gap-2">
+                    <i class="fas fa-comment text-blue-500"></i>
+                    {{ post.comments|length }}
+                  </span>
+                </div>
+
+                {% if post.comments %}
+                <div class="space-y-2">
+                  <h4 class="text-sm text-gray-400">Top Comments</h4>
+                  {% for comment in post.comments[:3] %}
+                  <div class="bg-gray-900/30 rounded p-3 text-sm">
+                    <p>{{ comment.text }}</p>
+                    <span class="inline-block px-2 py-1 rounded text-xs mt-2
+                      {% if comment.type == 'positive' %}bg-green-500/20 text-green-400
+                      {% elif comment.type == 'negative' %}bg-red-500/20 text-red-400
+                      {% elif comment.type == 'suggestion' %}bg-blue-500/20 text-blue-400
+                      {% else %}bg-gray-500/20 text-gray-400{% endif %}
+                    ">
+                      <i class="fas {% if comment.type == 'positive' %}fa-smile
+                        {% elif comment.type == 'negative' %}fa-frown
+                        {% elif comment.type == 'suggestion' %}fa-lightbulb
+                        {% else %}fa-meh{% endif %} mr-1"></i>
+                      {{ comment.type|title }}
+                    </span>
+                  </div>
+                  {% endfor %}
+                </div>
                 {% endif %}
-              </td>
-            </tr>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Charts and Stats -->
+          <div class="lg:col-span-1 space-y-6">
+            <!-- Sentiment Distribution -->
+            <div class="glass-effect rounded-lg p-4">
+              <h3 class="text-lg font-medium mb-4">Sentiment Distribution</h3>
+              <canvas id="sentimentChart" height="200"></canvas>
+            </div>
+
+            <!-- Engagement Trend -->
+            <div class="glass-effect rounded-lg p-4">
+              <h3 class="text-lg font-medium mb-4">Engagement Trend</h3>
+              <canvas id="engagementChart" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generate Report Button -->
+        <div class="p-6 border-t border-gray-800 flex justify-end">
+          <button onclick="generateReport()"
+            class="px-6 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-medium flex items-center gap-2 transition transform hover:scale-105">
+            <i class="fas fa-file-export"></i>
+            Generate Report
+          </button>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Social Media Results -->
+      {% if social_media_results %}
+      <div class="glass-effect rounded-xl mb-8">
+        <div class="p-6 border-b border-gray-800">
+          <h2 class="text-xl font-semibold flex items-center gap-3">
+            <i class="fas fa-users text-purple-500"></i>
+            Social Media Profiles
+          </h2>
+        </div>
+
+        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {% for result in social_media_results %}
+          <div class="glass-effect rounded-lg p-4">
+            <div class="flex items-center gap-4">
+              <div class="rounded-full p-3 bg-{{ result.status_color }}-500/10 text-{{ result.status_color }}-500">
+                <i class="fab fa-{{ result.platform|lower }} text-2xl"></i>
+              </div>
+              <div>
+                <h3 class="font-medium">{{ result.platform }}</h3>
+                <p class="text-sm text-{{ result.status_color }}-400">{{ result.status }}</p>
+              </div>
+            </div>
+            {% if result.url_display != 'N/A' %}
+            <a href="{{ result.url_display }}" target="_blank" 
+               class="mt-4 block text-sm text-gray-400 hover:text-white transition">
+              <i class="fas fa-external-link-alt mr-2"></i>
+              View Profile
+            </a>
+            {% endif %}
+          </div>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </main>
   </div>
-{% elif checked_username %} {# Show if a social check was attempted but no results (though backend always returns something) #}
-    <div class="mt-12 w-full max-w-3xl">
-    <h2 class="text-2xl font-bold text-gray-200">
-      Social Media Check Results
-    </h2>
-    <p class="text-gray-400">No results found for '{{ checked_username }}'. This usually means the platforms array was empty or an unexpected error occurred.</p>
-  </div>
-{% endif %}
 
-
-<!-- Chart and PDF Report Section - Only shown if content analysis results are present -->
-{% if results and results|length > 0 %}
-  <div class="mt-12 w-full max-w-3xl flex flex-col items-center">
-    <div id="engagementChart" style="width: 100%; max-width: 600px; height: 400px;" class="bg-gray-800 p-4 rounded-lg shadow-md"></div>
-
-    <form action="/report" method="POST" class="mt-8">
-      <input type="hidden" name="data" value='{{ results|tojson|safe }}'>
-      <input type="hidden" name="chart" id="chartImage">
-      <button type="submit" class="px-8 py-3 rounded-full bg-green-600 text-white font-bold hover:bg-green-700 transition text-lg">
-        Generate PDF Report
-      </button>
-    </form>
-  </div>
-{% endif %}
-
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<script>
-  const resultsData = {{ results|tojson|safe }}; // Data from content analysis
-
-  if (resultsData && resultsData.length > 0) {
-    const chartElement = document.getElementById('engagementChart');
-    if (chartElement) {
-      const chart = echarts.init(chartElement);
-      const option = {
-        title: {
-          text: 'Post Engagements (Likes)',
-          left: 'center',
-          textStyle: { color: '#e2e8f0' } // Tailwind gray-200
-        },
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: {
-            type: 'shadow'
-          }
-        },
-        grid: { // Add grid to ensure labels are not cut off
-            left: '3%',
-            right: '4%',
-            bottom: '3%',
-            containLabel: true
-        },
-        xAxis: {
-          type: 'category',
-          data: resultsData.map(r => r.title.length > 30 ? r.title.substring(0, 27) + '...' : r.title), // Truncate long titles
-          axisLabel: { 
-            color: '#cbd5e1', // Tailwind gray-300
-            interval: 0, // Show all labels
-            rotate: 30, // Rotate labels to prevent overlap
-            hideOverlap: false
-          }
-        },
-        yAxis: {
-          type: 'value',
-          name: 'Engagement (Likes)',
-          nameTextStyle: { color: '#cbd5e1' },
-          axisLabel: { color: '#cbd5e1' }
-        },
-        series: [{
-          name: 'Engagement',
-          type: 'bar',
-          data: resultsData.map(r => r.engagement),
-          itemStyle: {
-            borderRadius: [5, 5, 0, 0],
-            color: '#3b82f6' // Tailwind blue-500
-          },
-          emphasis: {
-            itemStyle: {
-              color: '#2563eb' // Tailwind blue-600
-            }
-          }
-        }]
-      };
-      chart.setOption(option);
-
-      // Convert chart to image for PDF (base64)
-      setTimeout(() => {
-        try {
-          const image = chart.getDataURL({
-            pixelRatio: 2,
-            backgroundColor: '#1f2937' // bg-gray-800, matching chart container
-          });
-          const chartImageInput = document.getElementById('chartImage');
-          if (chartImageInput) {
-            chartImageInput.value = image;
-          }
-        } catch (e) {
-          console.error("Error generating chart image:", e);
+  <!-- Data injection for Alpine.js and Charts -->
+  <script id="dashboard-data" type="application/json">
+    {{ results|tojson|safe if results else '[]' }}
+  </script>
+  
+  <script>
+    // Load data from the JSON script tag
+    const dashboardResults = JSON.parse(document.getElementById('dashboard-data').textContent);
+    window.DASHBOARD_DATA = {
+      results: dashboardResults,
+      charts: {
+        sentiment: {
+          labels: ['Positive', 'Negative', 'Neutral', 'Suggestions'],
+          colors: ['#10B981', '#EF4444', '#6B7280', '#F59E0B']
         }
-      }, 1000); // Ensure chart is rendered
-    }
-  } else {
-    const chartElement = document.getElementById('engagementChart');
-    if (chartElement) {
-      chartElement.style.display = 'none';
-    }
-  }
-</script>
-
-<footer class="mt-auto pt-8 text-center text-gray-500 text-sm">
-  <p>© 2025 InsightHub. All rights reserved.</p>
-</footer>
-
+      }
+    };
+    
+    // Alpine.js component for charts
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('dashboardCharts', () => ({
+        init() {
+          if (!window.DASHBOARD_DATA.results.length) return;
+          
+          this.initSentimentChart();
+          this.initEngagementChart();
+        },
+        
+        initSentimentChart() {
+          const data = window.DASHBOARD_DATA;
+          const ctx = document.getElementById('sentimentChart').getContext('2d');
+          
+          new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: data.charts.sentiment.labels,
+              datasets: [{
+                data: [
+                  data.results.filter(post => post.type === 'positive').length,
+                  data.results.filter(post => post.type === 'negative').length,
+                  data.results.filter(post => post.type === 'neutral').length,
+                  data.results.filter(post => post.type === 'suggestion').length
+                ],
+                backgroundColor: data.charts.sentiment.colors
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { color: '#E5E7EB' }
+                }
+              }
+            }
+          });
+        },
+        
+        initEngagementChart() {
+          const data = window.DASHBOARD_DATA;
+          const ctx = document.getElementById('engagementChart').getContext('2d');
+          
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: data.results.map(post => post.date),
+              datasets: [{
+                label: 'Engagement',
+                data: data.results.map(post => post.engagement),
+                borderColor: '#8B5CF6',
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  grid: { color: '#374151' },
+                  ticks: { color: '#9CA3AF' }
+                },
+                x: {
+                  grid: { color: '#374151' },
+                  ticks: { color: '#9CA3AF' }
+                }
+              }
+            }
+          });
+        },
+        
+        generateReport() {
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/report';
+          
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'data';
+          input.value = JSON.stringify(window.DASHBOARD_DATA.results);
+          
+          form.appendChild(input);
+          document.body.appendChild(form);
+          form.submit();
+        }
+      }));
+    });
+  </script>
 </body>
 </html>

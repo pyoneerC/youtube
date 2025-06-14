@@ -48,10 +48,14 @@
         }
         
         .header h1 {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
-            color: var(--primary-color);
             margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
         }
         
         .header p {
@@ -66,17 +70,22 @@
         }
         
         .metric-card {
-            background: var(--card-bg);
-            border-radius: 1rem;
+            background-color: var(--card-bg);
+            border-radius: 0.75rem;
             padding: 1.5rem;
-            border: 1px solid var(--border-color);
             text-align: center;
+            border: 1px solid var(--border-color);
         }
         
         .metric-card h3 {
-            color: #9CA3AF;
-            font-size: 1rem;
+            font-size: 2.5rem;
+            font-weight: 700;
             margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
         }
         
         .metric-value {
@@ -94,10 +103,10 @@
         }
         
         .chart-section {
-            background: var(--card-bg);
-            border-radius: 1rem;
-            padding: 2rem;
-            margin-bottom: 3rem;
+            background-color: var(--card-bg);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
             border: 1px solid var(--border-color);
         }
         
@@ -111,48 +120,31 @@
             margin-bottom: 3rem;
         }
         
+        .insights-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
         .insight-card {
-            background: var(--card-bg);
-            border-radius: 1rem;
+            background-color: var(--card-bg);
+            border-radius: 0.75rem;
             padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid var(--primary-color);
+            border: 1px solid var(--border-color);
         }
         
         .insight-card.positive {
-            border-left-color: var(--success-color);
-        }
-        
-        .insight-card.negative {
-            border-left-color: var(--danger-color);
+            border-left: 4px solid var(--success-color);
         }
         
         .insight-card.warning {
-            border-left-color: var(--warning-color);
+            border-left: 4px solid var(--warning-color);
         }
         
-        .insight-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
+        .insight-card.info {
+            border-left: 4px solid var(--primary-color);
         }
-        
-        .insight-title {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: #E5E7EB;
-        }
-        
-        .trend-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-        }
-        
-        .trend-up { color: var(--success-color); }
-        .trend-down { color: var(--danger-color); }
         
         .posts-section {
             display: grid;
@@ -247,6 +239,14 @@
             
             .header h1 {
                 font-size: 2rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .platform-card {
+                min-width: 100%;
             }
         }
     </style>
@@ -382,9 +382,113 @@
             {% endfor %}
         </section>
 
+        <!-- Insights -->
+        {% if analytics.insights %}
+        <section>
+            <h2 class="text-xl font-semibold mb-4">Insights Principales</h2>
+            <div class="insights-container">
+                {% for insight in analytics.insights %}
+                <div class="insight-card {{ insight.tipo }}">
+                    <p>{{ insight.descripcion }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Engagement Trend -->
+        <section class="chart-container">
+            <h2 class="text-xl font-semibold mb-4">Tendencia de Engagement</h2>
+            <canvas id="engagementTrendChart"></canvas>
+        </section>
+        
+        <!-- Platform Distribution -->
+        <section>
+            <h2 class="text-xl font-semibold mb-4">Distribución por Plataforma</h2>
+            <div class="platform-stats">
+                {% for platform, count in analytics.summary.platforms.items() %}
+                <div class="platform-card">
+                    <h3 class="text-lg font-semibold">{{ platform|title }}</h3>
+                    <p class="text-3xl font-bold mt-2">{{ count }}</p>
+                    <p class="text-sm mt-1">Posts</p>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        
+        <!-- Sentiment Analysis -->
+        <section class="chart-container">
+            <h2 class="text-xl font-semibold mb-4">Análisis de Sentimiento</h2>
+            <canvas id="sentimentChart"></canvas>
+        </section>
+
         <footer class="report-footer">
             <p>Generado por InsightHub Analytics - {{ generated_date }}</p>
         </footer>
-    </div>
+    </div>        <script id="report-data" type="application/json">
+            {{ data|tojson|safe }}
+        </script>
+        
+        <script>
+            const data = JSON.parse(document.getElementById('report-data').textContent);
+            
+            // Engagement Trend Chart
+        new Chart(document.getElementById('engagementTrendChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: data.trends.dates,
+                datasets: [{
+                    label: 'Engagement',
+                    data: data.trends.engagement_data,
+                    borderColor: '#8B5CF6',
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#374151' },
+                        ticks: { color: '#9CA3AF' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#9CA3AF' }
+                    }
+                }
+            }
+        });
+        
+        // Sentiment Analysis Chart
+        new Chart(document.getElementById('sentimentChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(data.summary.sentiment_breakdown).map(s => s.charAt(0).toUpperCase() + s.slice(1)),
+                datasets: [{
+                    data: Object.values(data.summary.sentiment_breakdown),
+                    backgroundColor: [
+                        '#10B981',  // Positive
+                        '#F59E0B',  // Neutral
+                        '#EF4444'   // Negative
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#E5E7EB' }
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>

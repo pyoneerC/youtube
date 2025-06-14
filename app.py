@@ -713,6 +713,11 @@ def report():
             return "No data provided", 400
 
         raw_data = json.loads(request.form.get("data"))
+        
+        # Validate data format
+        if not isinstance(raw_data, list):
+            logger.error("Invalid data format - expected list of posts")
+            return "Invalid data format", 400
 
         # Process data and add rich analytics
         analytics_data = {
@@ -721,26 +726,41 @@ def report():
                 "total_posts": len(raw_data),
                 "total_engagement": sum(post.get("engagement", 0) for post in raw_data),
                 "total_comments": sum(len(post.get("comments", [])) for post in raw_data),
-                "platforms": defaultdict(int),  # For tracking platform distribution
-                "sentiment_breakdown": defaultdict(int)  # For sentiment analysis
+                "platforms": defaultdict(int),
+                "sentiment_breakdown": defaultdict(int)
             },
             "trends": {
-                "dates": [post.get("date") for post in raw_data],
-                "engagement_data": [post.get("engagement") for post in raw_data],
-                "views_data": [post.get("views", 0) for post in raw_data]
+                "dates": [],
+                "engagement_data": [],
+                "views_data": []
             }
         }
 
-        # Calculate averages and trends
-        analytics_data["summary"]["avg_engagement"] = (
-            analytics_data["summary"]["total_engagement"] / len(raw_data) 
-            if raw_data else 0
-        )
+        # Calculate trends and engagement over time
+        for post in raw_data:
+            post_date = post.get("date")
+            if post_date:
+                analytics_data["trends"]["dates"].append(post_date)
+                analytics_data["trends"]["engagement_data"].append(post.get("engagement", 0))
+                analytics_data["trends"]["views_data"].append(post.get("views", 0))
+                analytics_data["summary"]["platforms"][post.get("platform", "unknown")] += 1
 
-        # Process sentiment data
+        # Calculate averages and percentages
+        if raw_data:
+            analytics_data["summary"]["avg_engagement"] = (
+                analytics_data["summary"]["total_engagement"] / len(raw_data)
+            )
+            analytics_data["summary"]["engagement_rate"] = calculate_engagement_rate(
+                analytics_data["summary"]["total_engagement"],
+                sum(post.get("followers", 0) for post in raw_data)
+            )
+
+        # Process sentiment data and generate sentiment scores
+        sentiment_counts = defaultdict(int)
         for post in raw_data:
             for comment in post.get("comments", []):
                 sentiment = comment.get("type", "neutral")
+                sentiment_counts[sentiment] += 1
                 analytics_data["summary"]["sentiment_breakdown"][sentiment] += 1
 
         # Find top performing content
@@ -750,77 +770,61 @@ def report():
                 key=lambda x: x.get("engagement", 0)
             )
 
-        # Generate insights
+        # Generate actionable insights
         insights = []
-        if len(raw_data) > 1:
-            # Engagement trend
-            current_engagement = analytics_data["trends"]["engagement_data"][-1]
-            prev_engagement = analytics_data["trends"]["engagement_data"][-2]
-            engagement_change = ((current_engagement - prev_engagement) / prev_engagement * 100 
-                               if prev_engagement else 0)
-            
-            insights.append({
-                "tipo": "positive" if engagement_change > 0 else "negative",
-                "titulo": "Tendencia de Engagement",
-                "descripcion": (
-                    f"El engagement {'aumentó' if engagement_change > 0 else 'disminuyó'} "
-                    f"un {abs(engagement_change):.1f}%"
-                ),
-                "tendencia": engagement_change
-            })
-
-            # Sentiment trend insight
-            sentiment_data = analytics_data["summary"]["sentiment_breakdown"]
-            total_sentiments = sum(sentiment_data.values())
-            if total_sentiments > 0:
-                positive_ratio = (sentiment_data.get("positive", 0) / total_sentiments) * 100
+        if raw_data:
+            # Engagement trends
+            recent_engagement = analytics_data["trends"]["engagement_data"][-3:]
+            if sum(recent_engagement) > sum(analytics_data["trends"]["engagement_data"][:3]):
                 insights.append({
-                    "tipo": "positive" if positive_ratio > 50 else "warning",
-                    "titulo": "Análisis de Sentimiento",
-                    "descripcion": f"{positive_ratio:.1f}% de comentarios son positivos",
-                    "tendencia": positive_ratio
+                    "type": "positive",
+                    "message": "Engagement is trending upward - continue current content strategy"
+                })
+            
+            # Platform performance
+            top_platform = max(
+                analytics_data["summary"]["platforms"].items(),
+                key=lambda x: x[1]
+            )[0]
+            insights.append({
+                "type": "info",
+                "message": f"{top_platform} shows highest activity - consider focusing efforts here"
+            })
+            
+            # Sentiment analysis
+            positive_ratio = (
+                sentiment_counts.get("positive", 0) + sentiment_counts.get("muy_positivo", 0)
+            ) / sum(sentiment_counts.values()) if sum(sentiment_counts.values()) > 0 else 0
+            
+            if positive_ratio > 0.7:
+                insights.append({
+                    "type": "success",
+                    "message": "Strong positive sentiment - maintain current tone and messaging"
+                })
+            elif positive_ratio < 0.3:
+                insights.append({
+                    "type": "warning",
+                    "message": "Lower positive sentiment - review content strategy and engagement"
                 })
 
         analytics_data["insights"] = insights
-
-        # Generate chart using the enhanced data
-        chart_img = generate_engagement_chart(raw_data)
-
-        # Render the template with rich analytics data
-        html = render_template(
+        
+        # Generate the report
+        logger.info("Generating report with %d posts and %d insights", 
+                   len(raw_data), len(insights))
+        
+        return render_template(
             "report_template.html",
-            analytics=analytics_data,
-            chart_img=chart_img,
-            generated_date=datetime.now().strftime("%Y-%m-%d %H:%M")
-        )
-
-        # Generate PDF
-        pdf = io.BytesIO()
-        pisa_status = pisa.CreatePDF(
-            html,
-            dest=pdf,
-            encoding='utf-8'
-        )
-
-        if pisa_status.err:
-            logger.error(f"Error creating PDF: {pisa_status.err}")
-            return "Error creating PDF", 500
-
-        pdf.seek(0)
-
-        logger.info(f"Successfully generated PDF report for user {session['user']}")
-        return send_file(
-            pdf,
-            mimetype="application/pdf",
-            download_name=f"social_media_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-            as_attachment=True
+            data=analytics_data,
+            generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            user=session.get("user", "Anonymous")
         )
 
     except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON data for report: {str(e)}")
-        return "Invalid data format", 400
+        logger.error("Invalid JSON data provided: %s", str(e))
+        return "Invalid JSON data", 400
     except Exception as e:
-        logger.error(f"Unexpected error generating report: {str(e)}")
+        logger.exception("Error generating report: %s", str(e))
         return "Error generating report", 500
 
 
