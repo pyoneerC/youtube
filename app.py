@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import numpy as np
 from typing import Dict, List
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from flask import Flask, jsonify, request, send_from_directory, render_template, redirect, session
 from flask_swagger_ui import get_swaggerui_blueprint
 from config.logger import setup_logging, log_time, log_exceptions
@@ -539,12 +537,12 @@ VALID_PASS = "demo123"
 
 @app.route("/")
 def index():
-    return render_template("login.html")
+    return render_template("modern_login.html")
 
 
 @app.route("/login", methods=["POST"])
 def login():
-    user = request.form["user"]
+    user = request.form["username"]  # Changed from "user" to "username"
     password = request.form["password"]
 
     if user == VALID_USER and password == VALID_PASS:
@@ -557,7 +555,7 @@ def login():
         return redirect("/dashboard")
     else:
         logger.warning(f"Failed login attempt for user: {user}")
-        return render_template("login.html", error="Invalid credentials")
+        return render_template("modern_login.html", error="Invalid credentials")
 
 
 @app.route("/dashboard")
@@ -571,7 +569,7 @@ def dashboard():
     session.modified = True
     
     return render_template(
-        "dashboard.html", 
+        "youtube_dashboard.html", 
         user=session["user"], 
         results=[], 
         social_media_results=[],
@@ -608,7 +606,7 @@ def analyze():
         logger.info(f"Analyzed {len(filtered_posts)} posts for keyword: {keyword}")
 
         return render_template(
-            "dashboard.html",
+            "youtube_dashboard.html",
             user=session["user"],
             results=filtered_posts,
             analytics=analytics,
@@ -622,7 +620,7 @@ def analyze():
     except (KeyError, ValueError) as e:
         logger.error(f"Error in analyze route: {str(e)}")
         return render_template(
-            "dashboard.html",
+            "youtube_dashboard.html",
             user=session["user"],
             error="Invalid input parameters",
             results=[],
@@ -631,7 +629,7 @@ def analyze():
     except Exception as e:
         logger.error(f"Unexpected error in analyze route: {str(e)}")
         return render_template(
-            "dashboard.html",
+            "youtube_dashboard.html",
             user=session["user"],
             error="An unexpected error occurred",
             results=[],
@@ -988,7 +986,7 @@ def fetch_youtube_comments(
                 part="id,snippet",
                 type="video",
                 maxResults=max_videos,
-                order="date",
+                order="relevance",
             )
             .execute()
         )
@@ -998,17 +996,54 @@ def fetch_youtube_comments(
         for search_result in search_response.get("items", []):
             video_id = search_result["id"]["videoId"]
             video_title = search_result["snippet"]["title"]
+            video_description = search_result["snippet"]["description"]
             video_date = search_result["snippet"]["publishedAt"][:10]
-
-            video_stats_response = (
-                youtube.videos().list(part="statistics", id=video_id).execute()
+            channel_title = search_result["snippet"]["channelTitle"]
+            
+            # Get high quality thumbnail
+            thumbnails = search_result["snippet"]["thumbnails"]
+            thumbnail_url = (
+                thumbnails.get("high", {}).get("url") or
+                thumbnails.get("medium", {}).get("url") or
+                thumbnails.get("default", {}).get("url")
             )
 
-            engagement = 0
+            # Get detailed video statistics
+            video_stats_response = (
+                youtube.videos().list(
+                    part="statistics,contentDetails", 
+                    id=video_id
+                ).execute()
+            )
+
+            view_count = 0
+            like_count = 0
+            comment_count = 0
+            duration = ""
+            
             if video_stats_response["items"]:
-                engagement = int(
-                    video_stats_response["items"][0]["statistics"].get("likeCount", 0)
-                )
+                stats = video_stats_response["items"][0]["statistics"]
+                content_details = video_stats_response["items"][0]["contentDetails"]
+                
+                view_count = int(stats.get("viewCount", 0))
+                like_count = int(stats.get("likeCount", 0))
+                comment_count = int(stats.get("commentCount", 0))
+                
+                # Parse duration (ISO 8601 format)
+                import re
+                duration_match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', content_details.get("duration", ""))
+                if duration_match:
+                    hours, minutes, seconds = duration_match.groups()
+                    duration_parts = []
+                    if hours: duration_parts.append(f"{hours}h")
+                    if minutes: duration_parts.append(f"{minutes}m")
+                    if seconds: duration_parts.append(f"{seconds}s")
+                    duration = " ".join(duration_parts)
+
+            # Calculate engagement rate
+            engagement_rate = 0
+            if view_count > 0:
+                engagement_rate = ((like_count + comment_count) / view_count) * 100
 
             try:
                 comments_response = (
@@ -1016,33 +1051,78 @@ def fetch_youtube_comments(
                     .list(
                         part="snippet",
                         videoId=video_id,
-                        maxResults=10,
+                        maxResults=20,
                         textFormat="plainText",
+                        order="relevance"
                     )
                     .execute()
                 )
 
                 comments_data = []
+                sentiment_scores = []
+                
                 for item in comments_response.get("items", []):
-                    comment_text = item["snippet"]["topLevelComment"]["snippet"][
-                        "textDisplay"
-                    ]
+                    comment_text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                    comment_likes = item["snippet"]["topLevelComment"]["snippet"].get("likeCount", 0)
+                    
+                    # Simple sentiment analysis
+                    sentiment_score = analyze_comment_sentiment(comment_text)
+                    sentiment_scores.append(sentiment_score)
+                    
                     comment_type = determine_comment_type(comment_text)
-                    comments_data.append({"text": comment_text, "type": comment_type})
+                    comments_data.append({
+                        "text": comment_text,
+                        "type": comment_type,
+                        "likes": comment_likes,
+                        "sentiment_score": sentiment_score
+                    })
 
-                posts.append(
-                    {
-                        "title": video_title,
-                        "comments": comments_data,
-                        "date": video_date,
-                        "engagement": engagement,
-                        "url": f"https://www.youtube.com/watch?v={video_id}",
-                    }
-                )
+                # Calculate average sentiment
+                avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.5
+
+                posts.append({
+                    "title": video_title,
+                    "description": video_description[:200] + "..." if len(video_description) > 200 else video_description,
+                    "channel": channel_title,
+                    "comments": comments_data,
+                    "date": video_date,
+                    "published_at": datetime.strptime(video_date, "%Y-%m-%d"),
+                    "duration": duration,
+                    "view_count": view_count,
+                    "like_count": like_count,
+                    "comment_count": comment_count,
+                    "engagement": like_count,  # For backwards compatibility
+                    "engagement_rate": engagement_rate,
+                    "sentiment_score": avg_sentiment,
+                    "sentiment": get_sentiment_label(avg_sentiment),
+                    "thumbnail": thumbnail_url,
+                    "url": f"https://www.youtube.com/watch?v={video_id}",
+                    "video_id": video_id
+                })
 
             except HttpError as e:
                 app.logger.error(f"Error fetching comments for video {video_id}: {e}")
-                continue  # Continue to next video if comments fail for one
+                # Still add the video even if comments fail
+                posts.append({
+                    "title": video_title,
+                    "description": video_description[:200] + "..." if len(video_description) > 200 else video_description,
+                    "channel": channel_title,
+                    "comments": [],
+                    "date": video_date,
+                    "published_at": datetime.strptime(video_date, "%Y-%m-%d"),
+                    "duration": duration,
+                    "view_count": view_count,
+                    "like_count": like_count,
+                    "comment_count": comment_count,
+                    "engagement": like_count,
+                    "engagement_rate": engagement_rate,
+                    "sentiment_score": 0.5,
+                    "sentiment": "neutral",
+                    "thumbnail": thumbnail_url,
+                    "url": f"https://www.youtube.com/watch?v={video_id}",
+                    "video_id": video_id
+                })
+                continue
 
         return posts
 
@@ -1155,12 +1235,27 @@ def get_analytics_summary(posts):
     Generate comprehensive analytics summary from posts data
     """
     if not posts:
-        return {}
+        return {
+            "total_posts": 0,
+            "views": 0,
+            "total_comments": 0,
+            "total_likes": 0,
+            "engagement_rate": 0,
+            "average_performance": 0,
+            "sentiment_breakdown": {"positive": 0, "negative": 0, "neutral": 0, "suggestion": 0}
+        }
 
-    total_engagement = sum(post.get("engagement", 0) for post in posts)
-    total_comments = sum(len(post.get("comments", [])) for post in posts)
+    # Calculate totals
+    total_views = sum(post.get("view_count", 0) for post in posts)
+    total_likes = sum(post.get("like_count", 0) for post in posts)
+    total_comments = sum(post.get("comment_count", 0) for post in posts)
+    total_engagement = total_likes + total_comments
+    
+    # Calculate average engagement rate
+    engagement_rates = [post.get("engagement_rate", 0) for post in posts if post.get("engagement_rate", 0) > 0]
+    avg_engagement_rate = sum(engagement_rates) / len(engagement_rates) if engagement_rates else 0
 
-    # Sentiment analysis
+    # Sentiment analysis from comments
     sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0, "suggestion": 0}
     all_comments = []
 
@@ -1171,17 +1266,36 @@ def get_analytics_summary(posts):
                 sentiment_counts[comment_type] += 1
             all_comments.append(comment.get("text", ""))
 
+    # Calculate performance score (normalized)
+    max_views = max(post.get("view_count", 0) for post in posts) if posts else 1
+    performance_scores = []
+    for post in posts:
+        views = post.get("view_count", 0)
+        likes = post.get("like_count", 0)
+        comments = post.get("comment_count", 0)
+        
+        # Normalize and weight the metrics
+        view_score = (views / max_views) * 40 if max_views > 0 else 0
+        engagement_score = ((likes + comments) / views) * 100 * 60 if views > 0 else 0
+        
+        performance_scores.append(min(view_score + engagement_score, 100))
+    
+    avg_performance = sum(performance_scores) / len(performance_scores) if performance_scores else 0
+
     # Top performing content
-    top_post = max(posts, key=lambda x: x.get("engagement", 0)) if posts else None
+    top_post = max(posts, key=lambda x: x.get("view_count", 0)) if posts else None
 
     return {
         "total_posts": len(posts),
+        "views": total_views,
+        "total_likes": total_likes,
+        "total_comments": total_comments,
         "total_engagement": total_engagement,
         "avg_engagement": total_engagement / len(posts) if posts else 0,
-        "total_comments": total_comments,
+        "engagement_rate": avg_engagement_rate,
+        "average_performance": avg_performance,
         "sentiment_breakdown": sentiment_counts,
         "top_performing_post": top_post,
-        "engagement_rate": (total_engagement / len(posts)) if posts else 0,
     }
 
 
@@ -1337,3 +1451,77 @@ def check_external_apis():
     except Exception as e:
         logger.error(f"External API check failed: {str(e)}")
         return False
+
+
+def analyze_comment_sentiment(comment_text):
+    """
+    Simple sentiment analysis for YouTube comments.
+    Returns a score between 0 (negative) and 1 (positive).
+    """
+    positive_words = ['good', 'great', 'awesome', 'amazing', 'excellent', 'love', 'like', 'best', 'fantastic', 'wonderful', 'perfect', 'brilliant', 'outstanding', 'superb', 'incredible', 'magnificent', 'spectacular', 'marvelous', 'fabulous', 'terrific']
+    negative_words = ['bad', 'terrible', 'awful', 'horrible', 'hate', 'dislike', 'worst', 'disappointing', 'poor', 'pathetic', 'disgusting', 'annoying', 'boring', 'stupid', 'ridiculous', 'useless', 'trash', 'garbage', 'waste']
+    
+    text_lower = comment_text.lower()
+    
+    positive_count = sum(1 for word in positive_words if word in text_lower)
+    negative_count = sum(1 for word in negative_words if word in text_lower)
+    
+    # Simple scoring algorithm
+    if positive_count == 0 and negative_count == 0:
+        return 0.5  # Neutral
+    
+    total_sentiment_words = positive_count + negative_count
+    sentiment_score = positive_count / total_sentiment_words if total_sentiment_words > 0 else 0.5
+    
+    return sentiment_score
+
+def get_sentiment_label(sentiment_score):
+    """Convert sentiment score to label"""
+    if sentiment_score >= 0.7:
+        return "very_positive"
+    elif sentiment_score >= 0.6:
+        return "positive"
+    elif sentiment_score >= 0.4:
+        return "neutral"
+    elif sentiment_score >= 0.3:
+        return "negative"
+    else:
+        return "very_negative"
+
+# Add Jinja2 filters for template formatting
+@app.template_filter('format_number')
+def format_number(value):
+    """Format numbers with commas for thousands separator"""
+    if value is None:
+        return '0'
+    try:
+        return f"{int(value):,}"
+    except (ValueError, TypeError):
+        return str(value)
+
+@app.template_filter('format_percentage')
+def format_percentage(value):
+    """Format percentage values"""
+    if value is None:
+        return '0.0'
+    try:
+        return f"{float(value):.1f}"
+    except (ValueError, TypeError):
+        return str(value)
+
+# Main execution
+if __name__ == "__main__":
+    # Set environment variables for development
+    os.environ.setdefault('FLASK_ENV', 'development')
+    
+    # Run the Flask application
+    logger.info("Starting YouTube Analytics Flask application...")
+    logger.info("Login credentials: username='eliberto', password='demo123'")
+    logger.info("Application will be available at: http://localhost:5000")
+    
+    app.run(
+        host="0.0.0.0",  # Allow external connections
+        port=5000,       # Default Flask port
+        debug=True,      # Enable debug mode for development
+        threaded=True    # Handle multiple requests concurrently
+    )
