@@ -483,11 +483,11 @@
                     
                     <div class="flex gap-4">
                         {% if results and results|length > 0 %}
-                        <form method="POST" action="/report" class="inline">
-                            <input type="hidden" name="data" value="{{ results|tojson }}">
-                            <input type="hidden" name="analytics" value="{{ analytics|tojson if analytics else '{}' }}">
+                        <form method="POST" action="/report" class="inline" id="reportForm">
+                            <input type="hidden" name="data" id="reportData">
+                            <input type="hidden" name="analytics" id="reportAnalytics">
                             <input type="hidden" name="channel_url" value="{{ channel_url if channel_url else 'Unknown' }}">
-                            <button type="submit" class="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
+                            <button type="button" onclick="generateReport()" class="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
                                 <i data-lucide="file-text" class="h-4 w-4"></i>
                                 Generate Report
                             </button>
@@ -521,6 +521,46 @@
     <script>
         // Initialize Lucide icons
         lucide.createIcons();
+        
+        // Data for report generation
+        const resultsData = {{ results|tojson|safe if results else '[]' }};
+        const analyticsData = {{ analytics|tojson|safe if analytics else '{}' }};
+        
+        function generateReport() {
+            try {
+                // Prepare clean data for report
+                const cleanData = resultsData.map(item => ({
+                    title: item.title || '',
+                    description: item.description || '',
+                    channel: item.channel || '',
+                    date: item.date || '',
+                    duration: item.duration || '',
+                    view_count: item.view_count || 0,
+                    like_count: item.like_count || 0,
+                    comment_count: item.comment_count || 0,
+                    engagement_rate: item.engagement_rate || 0,
+                    sentiment_score: item.sentiment_score || 0,
+                    sentiment: item.sentiment || 'neutral',
+                    url: item.url || '',
+                    comments: (item.comments || []).map(comment => ({
+                        text: comment.text || '',
+                        type: comment.type || 'neutral',
+                        likes: comment.likes || 0,
+                        sentiment_score: comment.sentiment_score || 0
+                    }))
+                }));
+                
+                // Set the form data
+                document.getElementById('reportData').value = JSON.stringify(cleanData);
+                document.getElementById('reportAnalytics').value = JSON.stringify(analyticsData);
+                
+                // Submit the form
+                document.getElementById('reportForm').submit();
+            } catch (error) {
+                console.error('Error generating report:', error);
+                alert('Error generating report. Please try again.');
+            }
+        }
         
         function exportToCsv() {
             // This would implement CSV export functionality
