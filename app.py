@@ -12,7 +12,6 @@ import numpy as np
 from typing import Dict, List
 from flask import Flask, jsonify, request, send_from_directory, render_template, redirect, session
 from flask_swagger_ui import get_swaggerui_blueprint
-from config.logger import setup_logging, log_time, log_exceptions
 from prometheus_client import Counter, Histogram, start_http_server
 
 # Initialize Flask app
@@ -21,9 +20,6 @@ app = Flask(__name__)
 # Setup secure session
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 app.permanent_session_lifetime = timedelta(hours=2)
-
-# Setup logging
-logger = setup_logging()
 
 # Configuración de análisis de sentimiento
 SENTIMENT_THRESHOLDS = {
@@ -183,25 +179,6 @@ REQUEST_COUNT = Counter(
 REQUEST_LATENCY = Histogram(
     "app_request_latency_seconds", "Request latency in seconds", ["endpoint"]
 )
-
-# Start Prometheus metrics server with fallback ports
-def start_metrics_server():
-    ports = [8001, 8002, 8003]  # Try these ports in order
-    for port in ports:
-        try:
-            start_http_server(port)
-            logger.info(f"Prometheus metrics server started on port {port}")
-            break
-        except OSError as e:
-            if port == ports[-1]:  # If this is the last port to try
-                logger.warning(f"Could not start Prometheus server on any port: {e}")
-            else:
-                logger.info(f"Port {port} in use, trying next port")
-                continue
-
-if not app.debug:  # Only start metrics in non-debug mode
-    start_metrics_server()
-
 
 @app.before_request
 def before_request():
