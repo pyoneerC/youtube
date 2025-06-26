@@ -761,15 +761,30 @@ def report():
         if "user" not in session:
             return redirect("/")
 
-        if not request.form.get("data"):
+        data_raw = request.form.get("data")
+        if not data_raw:
+            logger.error("No data provided for report generation")
             return "No data provided", 400
 
-        raw_data = json.loads(request.form.get("data"))
+        logger.info(f"Received data for report: {data_raw[:200]}...")  # Log first 200 chars
+        
+        try:
+            raw_data = json.loads(data_raw)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}")
+            logger.error(f"Raw data received: {data_raw}")
+            return "Invalid JSON data - please ensure you have analysis results to export", 400
+        
         analytics_raw = json.loads(request.form.get("analytics", "{}"))
-        keyword = request.form.get("keyword", "Unknown")
+        keyword = request.form.get("channel_url", "Unknown Channel")
         
         if not isinstance(raw_data, list):
-            return "Invalid data format", 400
+            logger.error(f"Data is not a list: {type(raw_data)}")
+            return "Invalid data format - expected list of results", 400
+            
+        if len(raw_data) == 0:
+            logger.warning("Empty data list for report generation")
+            return "No analysis results available to generate report", 400
 
         # Process data for report
         analytics_data = {

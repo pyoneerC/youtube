@@ -482,10 +482,11 @@
                     </h3>
                     
                     <div class="flex gap-4">
+                        {% if results and results|length > 0 %}
                         <form method="POST" action="/report" class="inline">
                             <input type="hidden" name="data" value="{{ results|tojson }}">
-                            <input type="hidden" name="analytics" value="{{ analytics|tojson }}">
-                            <input type="hidden" name="channel_url" value="{{ channel_url }}">
+                            <input type="hidden" name="analytics" value="{{ analytics|tojson if analytics else '{}' }}">
+                            <input type="hidden" name="channel_url" value="{{ channel_url if channel_url else 'Unknown' }}">
                             <button type="submit" class="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
                                 <i data-lucide="file-text" class="h-4 w-4"></i>
                                 Generate Report
@@ -496,6 +497,9 @@
                             <i data-lucide="table" class="h-4 w-4"></i>
                             Export CSV
                         </button>
+                        {% else %}
+                        <p class="text-muted-foreground">Run an analysis first to generate reports</p>
+                        {% endif %}
                     </div>
                 </div>
             </div>
