@@ -27,9 +27,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=120)
 
 # API Keys - Move to environment variables in production
 YOUTUBE_API_KEY = "AIzaSyA_pBApSdV9s5DjVyDh44mByJ5QYvkZzqg"
-GROQ_API_KEY = "gsk_WVuGV4vOW4evfjNE7jlDWGdyb3FYTCLqeWU4v2CB351ckeugq1qwx"
-GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # Login credentials
 VALID_USER = "eliberto"
@@ -74,19 +71,90 @@ def get_sentiment_class(sentiment_score: float) -> tuple:
     return "danger", "Very Negative"
 
 def analyze_comment_sentiment(comment_text):
-    """Simple sentiment analysis for YouTube comments."""
-    positive_words = ['good', 'great', 'awesome', 'amazing', 'excellent', 'love', 'like', 'best', 'fantastic', 'wonderful', 'perfect', 'brilliant', 'outstanding', 'superb']
-    negative_words = ['bad', 'terrible', 'awful', 'horrible', 'hate', 'dislike', 'worst', 'disappointing', 'poor', 'pathetic', 'disgusting', 'annoying', 'boring', 'stupid']
+    """Enhanced sentiment analysis for YouTube comments."""
+    # Extended word lists for better accuracy
+    positive_words = [
+        # Basic positive
+        'good', 'great', 'awesome', 'amazing', 'excellent', 'love', 'like', 'best', 
+        'fantastic', 'wonderful', 'perfect', 'brilliant', 'outstanding', 'superb',
+        # YouTube specific positive
+        'subscribe', 'subscribed', 'thanks', 'thank', 'helpful', 'useful', 'cool',
+        'nice', 'beautiful', 'incredible', 'impressive', 'inspiring', 'motivating',
+        'hilarious', 'funny', 'entertaining', 'enjoyable', 'recommend', 'favorite',
+        'favourite', 'appreciate', 'grateful', 'blessed', 'lucky', 'happy', 'joy',
+        'excited', 'thrilled', 'pleased', 'satisfied', 'delighted', 'magnificent',
+        # Emojis and expressions
+        '❤️', '😍', '🔥', '👏', '💯', '🙌', '✨', '💖', '😊', '😃', '😄', '😁',
+        'haha', 'lol', 'lmao', 'omg', 'wow', 'yes', 'yay', 'congrats', 'bravo'
+    ]
+    
+    negative_words = [
+        # Basic negative
+        'bad', 'terrible', 'awful', 'horrible', 'hate', 'dislike', 'worst', 
+        'disappointing', 'poor', 'pathetic', 'disgusting', 'annoying', 'boring', 'stupid',
+        # YouTube specific negative
+        'clickbait', 'fake', 'scam', 'spam', 'trash', 'garbage', 'waste', 'time',
+        'unsubscribe', 'unsubscribed', 'disliked', 'thumbs down', 'cringe', 'crappy',
+        'lame', 'dumb', 'idiotic', 'moronic', 'ridiculous', 'pointless', 'useless',
+        'confused', 'frustrated', 'angry', 'mad', 'upset', 'disappointed', 'sad',
+        'depressed', 'worried', 'concerned', 'shocked', 'disgusted', 'furious',
+        # Emojis and expressions
+        '😠', '😡', '🤮', '💩', '👎', '😞', '😢', '😭', '😤', '🙄', '😒',
+        'ugh', 'meh', 'nah', 'nope', 'wtf', 'seriously', 'stop', 'enough'
+    ]
+    
+    # Neutral indicators
+    neutral_words = [
+        'okay', 'ok', 'fine', 'alright', 'maybe', 'perhaps', 'probably', 'possibly',
+        'question', 'ask', 'wonder', 'think', 'believe', 'guess', 'suppose',
+        'first', 'second', 'third', 'here', 'there', 'when', 'where', 'what', 'how'
+    ]
     
     text_lower = comment_text.lower()
+    
+    # Count sentiment words
     positive_count = sum(1 for word in positive_words if word in text_lower)
     negative_count = sum(1 for word in negative_words if word in text_lower)
+    neutral_count = sum(1 for word in neutral_words if word in text_lower)
     
-    if positive_count == 0 and negative_count == 0:
-        return 0.5
+    # Check for special patterns
+    # Exclamation marks often indicate positive sentiment
+    exclamation_count = text_lower.count('!')
+    if exclamation_count > 0:
+        positive_count += min(exclamation_count, 3) * 0.5  # Cap the bonus
     
-    total_sentiment_words = positive_count + negative_count
-    return positive_count / total_sentiment_words if total_sentiment_words > 0 else 0.5
+    # ALL CAPS might indicate strong emotion (could be positive or negative)
+    caps_words = sum(1 for word in comment_text.split() if word.isupper() and len(word) > 2)
+    if caps_words > 0:
+        if positive_count > negative_count:
+            positive_count += caps_words * 0.3
+        elif negative_count > positive_count:
+            negative_count += caps_words * 0.3
+    
+    # Questions are often neutral
+    question_marks = text_lower.count('?')
+    if question_marks > 0:
+        neutral_count += question_marks * 0.5
+    
+    # Calculate sentiment score
+    total_sentiment_words = positive_count + negative_count + neutral_count
+    
+    if total_sentiment_words == 0:
+        # No sentiment indicators found, check length for neutral
+        if len(comment_text.strip()) < 10:
+            return 0.4  # Short comments tend to be less expressive
+        return 0.5  # Default neutral
+    
+    # Weighted sentiment calculation
+    positive_weight = positive_count / total_sentiment_words
+    negative_weight = negative_count / total_sentiment_words
+    neutral_weight = neutral_count / total_sentiment_words
+    
+    # Calculate final sentiment score (0 = very negative, 1 = very positive)
+    sentiment_score = positive_weight + (neutral_weight * 0.5) + (negative_weight * 0.1)
+    
+    # Ensure score is between 0 and 1
+    return max(0.0, min(1.0, sentiment_score))
 
 def get_sentiment_label(sentiment_score):
     """Convert sentiment score to label"""
@@ -101,51 +169,56 @@ def get_sentiment_label(sentiment_score):
     else:
         return "very_negative"
 
-def call_groq_ai(prompt):
-    """Call Groq AI API with a prompt."""
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 50,
-        "temperature": 0.0,
-        "top_p": 1,
-        "stop": ["\n", "User:", "Answer:"],
+def get_comment_type(comment_text):
+    """Classify comment type using keyword-based analysis"""
+    text_lower = comment_text.lower()
+    
+    # Question keywords
+    question_keywords = ['how', 'what', 'when', 'where', 'why', 'which', 'who', '?']
+    # Praise keywords  
+    praise_keywords = ['amazing', 'awesome', 'great', 'love', 'perfect', 'excellent', 'fantastic', 'wonderful', 'brilliant', 'incredible']
+    # Critique keywords
+    critique_keywords = ['wrong', 'bad', 'terrible', 'hate', 'awful', 'horrible', 'stupid', 'worst', 'sucks', 'disappointing']
+    # Request keywords
+    request_keywords = ['please', 'can you', 'could you', 'would you', 'tutorial', 'guide', 'help', 'explain']
+    
+    # Count keyword matches
+    question_score = sum(1 for keyword in question_keywords if keyword in text_lower)
+    praise_score = sum(1 for keyword in praise_keywords if keyword in text_lower)
+    critique_score = sum(1 for keyword in critique_keywords if keyword in text_lower)
+    request_score = sum(1 for keyword in request_keywords if keyword in text_lower)
+    
+    # Determine type based on highest score
+    scores = {
+        'question': question_score,
+        'praise': praise_score,
+        'critique': critique_score,
+        'request': request_score
     }
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-    }
-
-    req = urllib.request.Request(
-        GROQ_ENDPOINT,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=30) as response:
-            response_json = json.loads(response.read().decode("utf-8"))
-            if response_json and response_json.get("choices"):
-                return response_json["choices"][0]["message"]["content"].strip()
-            else:
-                logger.error(f"Groq API: No choices found in response")
-                return "neutral"
-    except Exception as e:
-        logger.error(f"Groq API Error: {e}")
-        return "neutral"
+    
+    max_type = max(scores, key=scores.get)
+    
+    # If no clear category or tie, default to 'general'
+    if scores[max_type] == 0 or list(scores.values()).count(scores[max_type]) > 1:
+        return 'general'
+    
+    return max_type
 
 def determine_comment_type(comment_text):
-    """Use Groq AI to determine comment type."""
-    prompt = f"""Analyze this YouTube comment and classify it as exactly one of these types: positive, negative, neutral, or suggestion.
-    Just return the type, nothing else.
-    Comment: {comment_text}
-    Type:"""
-
-    response = call_groq_ai(prompt).lower().strip()
-    valid_types = {"positive", "negative", "neutral", "suggestion"}
-    return response if response in valid_types else "neutral"
+    """Determine comment type using local analysis."""
+    sentiment_score = analyze_comment_sentiment(comment_text)
+    
+    # Use sentiment to determine type
+    if sentiment_score >= 0.6:
+        return "positive"
+    elif sentiment_score <= 0.4:
+        return "negative"
+    else:
+        # Check for suggestion keywords
+        suggestion_keywords = ['should', 'could', 'would', 'suggest', 'recommend', 'idea', 'maybe', 'perhaps']
+        if any(keyword in comment_text.lower() for keyword in suggestion_keywords):
+            return "suggestion"
+        return "neutral"
 
 def extract_channel_id_from_url(url):
     """Extract channel ID from various YouTube URL formats."""
