@@ -794,6 +794,7 @@ def report():
                 "total_engagement": sum(post.get("like_count", 0) for post in raw_data),
                 "total_comments": sum(post.get("comment_count", 0) for post in raw_data),
                 "total_views": sum(post.get("view_count", 0) for post in raw_data),
+                "avg_engagement": (sum(post.get("like_count", 0) for post in raw_data) / len(raw_data)) if raw_data else 0,
                 "keyword": keyword,
                 "sentiment_breakdown": defaultdict(int)
             },
@@ -820,6 +821,7 @@ def report():
         return render_template(
             "report_template.html",
             data=analytics_data,
+            analytics=analytics_data,  # Pass as both data and analytics for template compatibility
             generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             user=session.get("user", "Anonymous")
         )
