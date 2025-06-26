@@ -201,8 +201,8 @@
                 </button>
                 
                 <div class="flex-1">
-                    <h1 class="text-lg font-semibold">YouTube Content Analysis</h1>
-                    <p class="text-sm text-muted-foreground">Analyze YouTube content performance and trends</p>
+                    <h1 class="text-lg font-semibold">YouTube Channel Analysis</h1>
+                    <p class="text-sm text-muted-foreground">Analyze YouTube channel performance and recent videos</p>
                 </div>
                 
                 <div class="flex items-center gap-4">
@@ -235,8 +235,8 @@
                         <i data-lucide="youtube" class="h-5 w-5 text-white"></i>
                     </div>
                     <div>
-                        <h2 class="text-xl font-semibold">YouTube Content Analysis</h2>
-                        <p class="text-sm text-muted-foreground">Analyze video performance and audience engagement</p>
+                        <h2 class="text-xl font-semibold">YouTube Channel Analysis</h2>
+                        <p class="text-sm text-muted-foreground">Analyze channel videos and audience engagement</p>
                     </div>
                 </div>
                 
@@ -244,17 +244,18 @@
                       x-on:submit="isAnalyzing = true" 
                       x-data="{ startDate: '', endDate: '' }">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <!-- Search Query -->
+                        <!-- Channel URL -->
                         <div class="space-y-2">
-                            <label class="text-sm font-medium">Search Query</label>
+                            <label class="text-sm font-medium">YouTube Channel URL</label>
                             <div class="relative">
                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i data-lucide="search" class="h-4 w-4 text-muted-foreground"></i>
+                                    <i data-lucide="link" class="h-4 w-4 text-muted-foreground"></i>
                                 </div>
-                                <input type="text" name="search" placeholder="Enter keywords or topic..." 
+                                <input type="text" name="channel_url" placeholder="https://youtube.com/@channelname or https://youtube.com/channel/UC..." 
                                        class="w-full pl-10 pr-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring transition-colors" 
                                        required>
                             </div>
+                            <p class="text-xs text-muted-foreground">Enter the full YouTube channel URL (e.g., youtube.com/@pewdiepie)</p>
                         </div>
                         
                         <!-- Platform (Hidden - YouTube only) -->
@@ -324,8 +325,8 @@
                 <div class="card p-6">
                     <div class="flex items-center justify-between mb-4">
                         <div>
-                            <h2 class="text-2xl font-bold">Analysis Results</h2>
-                            <p class="text-muted-foreground">YouTube content analysis for "{{ keyword }}" ({{ start }} to {{ end }})</p>
+                            <h2 class="text-2xl font-bold">Channel Analysis Results</h2>
+                            <p class="text-muted-foreground">YouTube channel analysis for {{ channel_url }} ({{ start }} to {{ end }})</p>
                         </div>
                         <div class="flex items-center gap-2 px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">
                             <i data-lucide="check-circle" class="h-4 w-4"></i>
@@ -484,7 +485,7 @@
                         <form method="POST" action="/report" class="inline">
                             <input type="hidden" name="data" value="{{ results|tojson }}">
                             <input type="hidden" name="analytics" value="{{ analytics|tojson }}">
-                            <input type="hidden" name="keyword" value="{{ keyword }}">
+                            <input type="hidden" name="channel_url" value="{{ channel_url }}">
                             <button type="submit" class="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
                                 <i data-lucide="file-text" class="h-4 w-4"></i>
                                 Generate Report

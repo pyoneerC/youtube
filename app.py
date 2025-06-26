@@ -147,6 +147,131 @@ def determine_comment_type(comment_text):
     valid_types = {"positive", "negative", "neutral", "suggestion"}
     return response if response in valid_types else "neutral"
 
+def extract_channel_id_from_url(url):
+    """Extract channel ID from various YouTube URL formats."""
+    try:
+        # Clean and normalize the URL
+        url = url.strip()
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+            
+        logger.info(f"Processing URL: {url}")
+        
+        # Handle @username format (new YouTube handles)
+        if '/@' in url:
+            handle_match = re.search(r'youtube\.com/@([a-zA-Z0-9_.-]+)', url)
+            if handle_match:
+                handle = handle_match.group(1)
+                logger.info(f"Found handle: @{handle}")
+                return resolve_handle_to_channel_id(handle)
+        
+        # Handle direct channel ID URLs
+        channel_match = re.search(r'youtube\.com/channel/([a-zA-Z0-9_-]{24})', url)
+        if channel_match:
+            channel_id = channel_match.group(1)
+            logger.info(f"Found direct channel ID: {channel_id}")
+            return channel_id
+        
+        # Handle legacy /c/ and /user/ URLs
+        legacy_patterns = [
+            r'youtube\.com/c/([a-zA-Z0-9_-]+)',                # /c/username
+            r'youtube\.com/user/([a-zA-Z0-9_-]+)',             # /user/username
+        ]
+        
+        for pattern in legacy_patterns:
+            match = re.search(pattern, url)
+            if match:
+                username = match.group(1)
+                logger.info(f"Found legacy username: {username}")
+                return resolve_username_to_channel_id(username)
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error extracting channel ID from URL {url}: {e}")
+        return None
+
+def resolve_username_to_channel_id(username):
+    """Resolve a YouTube username/handle to channel ID using the API."""
+    try:
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        
+        # First try searching by channel name
+        search_response = youtube.search().list(
+            q=username,
+            part="snippet",
+            type="channel",
+            maxResults=5
+        ).execute()
+        
+        # Look for exact or close matches
+        for item in search_response.get("items", []):
+            channel_title = item["snippet"]["title"].lower()
+            if username.lower() in channel_title or channel_title in username.lower():
+                return item["snippet"]["channelId"]
+        
+        # If no exact match, return the first result if available
+        if search_response.get("items"):
+            return search_response["items"][0]["snippet"]["channelId"]
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error resolving username {username} to channel ID: {e}")
+        return None
+
+def resolve_handle_to_channel_id(handle):
+    """Resolve a YouTube handle (@username) to channel ID using the API."""
+    try:
+        youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+        
+        logger.info(f"Resolving handle: @{handle}")
+        
+        # Try searching for the handle with @ prefix
+        search_queries = [
+            f"@{handle}",  # Exact handle
+            handle,       # Without @
+            f"{handle} channel"  # With channel keyword
+        ]
+        
+        for query in search_queries:
+            logger.info(f"Searching for: {query}")
+            
+            search_response = youtube.search().list(
+                q=query,
+                part="snippet",
+                type="channel",
+                maxResults=10
+            ).execute()
+            
+            # Look for exact matches first
+            for item in search_response.get("items", []):
+                channel_title = item["snippet"]["title"]
+                channel_id = item["snippet"]["channelId"]
+                
+                logger.info(f"Found channel: {channel_title} (ID: {channel_id})")
+                
+                # Check if this looks like the right channel
+                # Look for exact handle match or very similar title
+                if (handle.lower() in channel_title.lower() or 
+                    channel_title.lower() in handle.lower() or
+                    handle.lower().replace('_', '').replace('-', '') in channel_title.lower().replace(' ', '').replace('_', '').replace('-', '')):
+                    logger.info(f"Match found: {channel_title} -> {channel_id}")
+                    return channel_id
+            
+            # If we found channels but no exact match, return the first one for the exact handle search
+            if query == f"@{handle}" and search_response.get("items"):
+                first_channel = search_response["items"][0]
+                logger.info(f"Using first result: {first_channel['snippet']['title']} -> {first_channel['snippet']['channelId']}")
+                return first_channel["snippet"]["channelId"]
+        
+        logger.warning(f"No channel found for handle: @{handle}")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error resolving handle @{handle} to channel ID: {e}")
+        return None
+
 # ===== RATE LIMITING DECORATOR =====
 
 def rate_limit(f):
@@ -182,30 +307,62 @@ def rate_limit(f):
 
 # ===== YOUTUBE API FUNCTIONS =====
 
-def fetch_youtube_comments(keyword, max_videos=5):
-    """Fetch comments from YouTube videos matching the keyword."""
+def fetch_youtube_channel_videos(channel_url, max_videos=5):
+    """Fetch recent videos from a YouTube channel URL."""
     try:
+        logger.info(f"Starting analysis for URL: {channel_url}")
+        
+        # Extract channel ID from URL
+        channel_id = extract_channel_id_from_url(channel_url)
+        if not channel_id:
+            logger.error(f"Could not extract channel ID from URL: {channel_url}")
+            return []
+
+        logger.info(f"Resolved channel ID: {channel_id}")
         youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
-        search_response = youtube.search().list(
-            q=keyword,
-            part="id,snippet",
-            type="video",
-            maxResults=max_videos,
-            order="relevance",
+        # Get channel details
+        channel_response = youtube.channels().list(
+            part="snippet,contentDetails,statistics",
+            id=channel_id
         ).execute()
 
+        if not channel_response.get("items"):
+            logger.error(f"Channel not found for ID: {channel_id}")
+            return []
+
+        channel_info = channel_response["items"][0]
+        channel_title = channel_info["snippet"]["title"]
+        uploads_playlist_id = channel_info["contentDetails"]["relatedPlaylists"]["uploads"]
+        
+        logger.info(f"Found channel: {channel_title}")
+        logger.info(f"Fetching videos from uploads playlist: {uploads_playlist_id}")
+
+        # Get recent videos from uploads playlist
+        playlist_response = youtube.playlistItems().list(
+            part="snippet",
+            playlistId=uploads_playlist_id,
+            maxResults=max_videos
+        ).execute()
+
+        if not playlist_response.get("items"):
+            logger.warning(f"No videos found in channel: {channel_title}")
+            return []
+
+        logger.info(f"Found {len(playlist_response['items'])} videos")
         posts = []
 
-        for search_result in search_response.get("items", []):
-            video_id = search_result["id"]["videoId"]
-            video_title = search_result["snippet"]["title"]
-            video_description = search_result["snippet"]["description"]
-            video_date = search_result["snippet"]["publishedAt"][:10]
-            channel_title = search_result["snippet"]["channelTitle"]
+        for playlist_item in playlist_response.get("items", []):
+            video_id = playlist_item["snippet"]["resourceId"]["videoId"]
+            video_title = playlist_item["snippet"]["title"]
+            video_description = playlist_item["snippet"]["description"]
+            video_date = playlist_item["snippet"]["publishedAt"][:10]
+            channel_title = playlist_item["snippet"]["channelTitle"]
+            
+            logger.info(f"Processing video: {video_title}")
             
             # Get thumbnail
-            thumbnails = search_result["snippet"]["thumbnails"]
+            thumbnails = playlist_item["snippet"]["thumbnails"]
             thumbnail_url = (
                 thumbnails.get("high", {}).get("url") or
                 thumbnails.get("medium", {}).get("url") or
@@ -274,7 +431,10 @@ def fetch_youtube_comments(keyword, max_videos=5):
                         "sentiment_score": sentiment_score
                     })
             except HttpError as e:
-                logger.error(f"Error fetching comments for video {video_id}: {e}")
+                if e.resp.status == 403:
+                    logger.warning(f"Comments disabled for video {video_id}: {video_title}")
+                else:
+                    logger.error(f"Error fetching comments for video {video_id}: {e}")
 
             # Calculate average sentiment
             avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.5
@@ -299,10 +459,15 @@ def fetch_youtube_comments(keyword, max_videos=5):
                 "video_id": video_id
             })
 
+        logger.info(f"Successfully processed {len(posts)} videos")
         return posts
 
     except HttpError as e:
         logger.error(f"YouTube API error: {e}")
+        if e.resp.status == 404:
+            logger.error("Channel not found - check the URL")
+        elif e.resp.status == 403:
+            logger.error("API quota exceeded or access forbidden")
         return []
     except Exception as e:
         logger.error(f"Unexpected error in YouTube fetch: {e}")
@@ -452,15 +617,32 @@ def analyze():
         return redirect("/")
 
     try:
-        keyword = request.form["search"]
+        channel_url = request.form["channel_url"]
         start_date_str = request.form["start_date"]
         end_date_str = request.form["end_date"]
-        max_videos = min(int(request.form.get("max_videos", "3")), 20)
+        max_videos = min(int(request.form.get("max_videos", "5")), 20)
+
+        # Validate YouTube URL
+        if not any(domain in channel_url for domain in ['youtube.com', 'youtu.be']):
+            return render_template(
+                "youtube_dashboard.html",
+                user=session["user"],
+                error="Please enter a valid YouTube channel URL",
+                results=[],
+            )
 
         start = datetime.strptime(start_date_str, "%Y-%m-%d")
         end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-        posts = fetch_youtube_comments(keyword, max_videos)
+        posts = fetch_youtube_channel_videos(channel_url, max_videos)
+
+        if not posts:
+            return render_template(
+                "youtube_dashboard.html",
+                user=session["user"],
+                error="Could not fetch videos from this channel. Please check the URL and try again.",
+                results=[],
+            )
 
         # Filter posts by date
         filtered_posts = [
@@ -469,14 +651,14 @@ def analyze():
         ]
 
         analytics = get_analytics_summary(filtered_posts)
-        logger.info(f"Analyzed {len(filtered_posts)} posts for keyword: {keyword}")
+        logger.info(f"Analyzed {len(filtered_posts)} posts for channel: {channel_url}")
 
         return render_template(
             "youtube_dashboard.html",
             user=session["user"],
             results=filtered_posts,
             analytics=analytics,
-            keyword=keyword,
+            channel_url=channel_url,
             channel="youtube",
             start=start_date_str,
             end=end_date_str,
