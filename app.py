@@ -6,13 +6,15 @@ import json
 import logging
 import urllib.request
 import urllib.error
+import csv
+import io
 from datetime import datetime, timedelta
 from collections import defaultdict
 from functools import wraps
 from typing import Dict, List
 
 import numpy as np
-from flask import Flask, request, render_template, redirect, session, jsonify
+from flask import Flask, request, render_template, redirect, session, jsonify, make_response
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from bs4 import BeautifulSoup
@@ -831,6 +833,90 @@ def report():
     except Exception as e:
         logger.exception(f"Error generating report: {e}")
         return "Error generating report", 500
+
+@app.route("/export_csv", methods=["POST"])
+def export_csv():
+    """Export analysis data to CSV format."""
+    try:
+        if "user" not in session:
+            return redirect("/")
+
+        data_raw = request.form.get("data")
+        if not data_raw:
+            logger.error("No data provided for CSV export")
+            return "No data provided", 400
+
+        try:
+            raw_data = json.loads(data_raw)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error in CSV export: {e}")
+            return "Invalid JSON data", 400
+        
+        if not isinstance(raw_data, list) or len(raw_data) == 0:
+            return "No analysis results available to export", 400
+
+        # Create CSV content
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers
+        headers = [
+            'Title', 'Channel', 'Date', 'Duration', 'Views', 'Likes', 'Comments',
+            'Engagement Rate (%)', 'URL', 'Sentiment Score', 'Sentiment',
+            'Positive Comments', 'Negative Comments', 'Neutral Comments', 
+            'Question Comments', 'Praise Comments', 'Critique Comments'
+        ]
+        writer.writerow(headers)
+        
+        # Write data rows
+        for post in raw_data:
+            # Count comment types
+            comment_counts = defaultdict(int)
+            for comment in post.get("comments", []):
+                comment_type = comment.get("type", "neutral")
+                comment_counts[comment_type] += 1
+            
+            row = [
+                post.get("title", ""),
+                post.get("channel", ""),
+                post.get("date", ""),
+                post.get("duration", ""),
+                post.get("view_count", 0),
+                post.get("like_count", 0),
+                post.get("comment_count", 0),
+                round(post.get("engagement_rate", 0), 2),
+                post.get("url", ""),
+                round(post.get("sentiment_score", 0), 3),
+                post.get("sentiment", ""),
+                comment_counts.get("positive", 0),
+                comment_counts.get("negative", 0),
+                comment_counts.get("neutral", 0),
+                comment_counts.get("question", 0),
+                comment_counts.get("praise", 0),
+                comment_counts.get("critique", 0)
+            ]
+            writer.writerow(row)
+        
+        # Create response
+        output.seek(0)
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"youtube_analysis_{timestamp}.csv"
+        
+        # Create response with proper headers
+        response = make_response(csv_content)
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        logger.info(f"CSV export generated successfully with {len(raw_data)} records")
+        return response
+
+    except Exception as e:
+        logger.exception(f"Error generating CSV export: {e}")
+        return "Error generating CSV export", 500
 
 @app.route("/logout")
 def logout():

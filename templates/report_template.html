@@ -262,38 +262,54 @@
         <!-- Métricas Principales -->
         <section class="metrics-grid">
             <div class="metric-card">
-                <h3>Total Posts</h3>
-                <div class="metric-value">{{ analytics.summary.total_posts }}</div>
+                <h3>Total Videos</h3>
+                <div class="metric-value">{{ data.summary.total_posts if data.summary else (data.posts|length if data.posts else 0) }}</div>
             </div>
             
             <div class="metric-card">
-                <h3>Engagement Promedio</h3>
-                <div class="metric-value">{{ "%.1f"|format(analytics.summary.avg_engagement) }}%</div>
-            </div>
-            
-            <div class="metric-card">
-                <h3>Total Comentarios</h3>
-                <div class="metric-value">{{ analytics.summary.total_comments }}</div>
-            </div>
-            
-            <div class="metric-card">
-                <h3>Sentimiento General</h3>
+                <h3>Total Views</h3>
                 <div class="metric-value">
-                    {% set positive = analytics.summary.sentiment_breakdown.positive %}
-                    {% set total = analytics.summary.total_comments %}
-                    {{ "%.1f"|format((positive / total * 100) if total > 0 else 0) }}%
-                    <span class="badge success">Positivo</span>
+                    {% set total_views = data.posts|sum(attribute='view_count') if data.posts else 0 %}
+                    {{ "{:,}".format(total_views) }}
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>Total Engagement</h3>
+                <div class="metric-value">
+                    {% set total_engagement = data.posts|sum(attribute='like_count') if data.posts else 0 %}
+                    {{ "{:,}".format(total_engagement) }}
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <h3>Avg Engagement Rate</h3>
+                <div class="metric-value">
+                    {% set avg_engagement = (data.posts|sum(attribute='engagement_rate') / data.posts|length) if data.posts else 0 %}
+                    {{ "%.2f"|format(avg_engagement) }}%
+                    <span class="badge success">Rate</span>
                 </div>
             </div>
         </section>
 
-        <!-- Gráficos de Análisis -->
-        {% if chart_img %}
+        <!-- Charts Section -->
         <section class="chart-section">
-            <h2>Análisis de Engagement y Tendencias</h2>
-            <img src="{{ chart_img }}" alt="Gráfico de Engagement" style="width: 100%; height: auto;">
+            <h2>📊 Performance Analytics</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                <div>
+                    <h3>Sentiment Distribution</h3>
+                    <canvas id="sentimentChart" width="400" height="300"></canvas>
+                </div>
+                <div>
+                    <h3>Engagement vs Views</h3>
+                    <canvas id="engagementChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+            <div>
+                <h3>Video Performance Timeline</h3>
+                <canvas id="timelineChart" width="800" height="400"></canvas>
+            </div>
         </section>
-        {% endif %}
 
         <!-- Insights -->
         <section class="insights-section">

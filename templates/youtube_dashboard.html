@@ -493,10 +493,13 @@
                             </button>
                         </form>
                         
-                        <button onclick="exportToCsv()" class="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center gap-2">
-                            <i data-lucide="table" class="h-4 w-4"></i>
-                            Export CSV
-                        </button>
+                        <form method="POST" action="/export_csv" class="inline" id="csvForm">
+                            <input type="hidden" name="data" id="csvData">
+                            <button type="button" onclick="exportToCsv()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                                <i data-lucide="table" class="h-4 w-4"></i>
+                                Export CSV
+                            </button>
+                        </form>
                         {% else %}
                         <p class="text-muted-foreground">Run an analysis first to generate reports</p>
                         {% endif %}
@@ -563,8 +566,41 @@
         }
         
         function exportToCsv() {
-            // This would implement CSV export functionality
-            alert('CSV export functionality would be implemented here');
+            try {
+                if (!resultsData || resultsData.length === 0) {
+                    alert('No data available to export. Please run an analysis first.');
+                    return;
+                }
+                
+                // Prepare clean data for CSV
+                const cleanData = resultsData.map(item => ({
+                    title: item.title || '',
+                    channel: item.channel || '',
+                    date: item.date || '',
+                    duration: item.duration || '',
+                    view_count: item.view_count || 0,
+                    like_count: item.like_count || 0,
+                    comment_count: item.comment_count || 0,
+                    engagement_rate: item.engagement_rate || 0,
+                    sentiment_score: item.sentiment_score || 0,
+                    sentiment: item.sentiment || 'neutral',
+                    url: item.url || '',
+                    comments: (item.comments || []).map(comment => ({
+                        text: comment.text || '',
+                        type: comment.type || 'neutral',
+                        likes: comment.likes || 0,
+                        sentiment_score: comment.sentiment_score || 0
+                    }))
+                }));
+                
+                // Set the form data and submit
+                document.getElementById('csvData').value = JSON.stringify(cleanData);
+                document.getElementById('csvForm').submit();
+                
+            } catch (error) {
+                console.error('Error exporting CSV:', error);
+                alert('Error exporting CSV. Please try again.');
+            }
         }
         
         // Set default dates
