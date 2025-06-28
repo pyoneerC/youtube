@@ -382,10 +382,11 @@ def rate_limit(f):
 
 # ===== YOUTUBE API FUNCTIONS =====
 
-def fetch_youtube_channel_videos(channel_url, max_videos=5):
-    """Fetch recent videos from a YouTube channel URL."""
+def fetch_youtube_channel_videos(channel_url, max_videos=5, start_date=None, end_date=None):
+    """Fetch videos from a YouTube channel URL within the specified date range."""
     try:
         logger.info(f"Starting analysis for URL: {channel_url}")
+        logger.info(f"Date range: {start_date} to {end_date}")
         
         # Extract channel ID from URL
         channel_id = extract_channel_id_from_url(channel_url)
@@ -413,128 +414,166 @@ def fetch_youtube_channel_videos(channel_url, max_videos=5):
         logger.info(f"Found channel: {channel_title}")
         logger.info(f"Fetching videos from uploads playlist: {uploads_playlist_id}")
 
-        # Get recent videos from uploads playlist
-        playlist_response = youtube.playlistItems().list(
-            part="snippet",
-            playlistId=uploads_playlist_id,
-            maxResults=max_videos
-        ).execute()
+        # Convert date strings to datetime objects for comparison
+        start_datetime = None
+        end_datetime = None
+        if start_date:
+            start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
+        if end_date:
+            end_datetime = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # Include the end date
 
-        if not playlist_response.get("items"):
-            logger.warning(f"No videos found in channel: {channel_title}")
-            return []
-
-        logger.info(f"Found {len(playlist_response['items'])} videos")
+        # We'll fetch more videos than requested to account for date filtering
+        fetch_limit = min(max_videos * 3, 50)  # Fetch up to 3x more videos, but cap at 50
         posts = []
+        page_token = None
+        videos_processed = 0
 
-        for playlist_item in playlist_response.get("items", []):
-            video_id = playlist_item["snippet"]["resourceId"]["videoId"]
-            video_title = playlist_item["snippet"]["title"]
-            video_description = playlist_item["snippet"]["description"]
-            video_date = playlist_item["snippet"]["publishedAt"][:10]
-            channel_title = playlist_item["snippet"]["channelTitle"]
+        while len(posts) < max_videos and videos_processed < fetch_limit:
+            # Get videos from uploads playlist
+            playlist_params = {
+                "part": "snippet",
+                "playlistId": uploads_playlist_id,
+                "maxResults": min(20, fetch_limit - videos_processed)  # YouTube API limit is 50
+            }
             
-            logger.info(f"Processing video: {video_title}")
-            
-            # Get thumbnail
-            thumbnails = playlist_item["snippet"]["thumbnails"]
-            thumbnail_url = (
-                thumbnails.get("high", {}).get("url") or
-                thumbnails.get("medium", {}).get("url") or
-                thumbnails.get("default", {}).get("url")
-            )
+            if page_token:
+                playlist_params["pageToken"] = page_token
 
-            # Get video statistics
-            video_stats_response = youtube.videos().list(
-                part="statistics,contentDetails", 
-                id=video_id
-            ).execute()
+            playlist_response = youtube.playlistItems().list(**playlist_params).execute()
 
-            view_count = 0
-            like_count = 0
-            comment_count = 0
-            duration = ""
-            
-            if video_stats_response["items"]:
-                stats = video_stats_response["items"][0]["statistics"]
-                content_details = video_stats_response["items"][0]["contentDetails"]
+            if not playlist_response.get("items"):
+                logger.warning(f"No more videos found in channel: {channel_title}")
+                break
+
+            for playlist_item in playlist_response.get("items", []):
+                videos_processed += 1
                 
-                view_count = int(stats.get("viewCount", 0))
-                like_count = int(stats.get("likeCount", 0))
-                comment_count = int(stats.get("commentCount", 0))
+                video_id = playlist_item["snippet"]["resourceId"]["videoId"]
+                video_title = playlist_item["snippet"]["title"]
+                video_description = playlist_item["snippet"]["description"]
+                video_date_str = playlist_item["snippet"]["publishedAt"][:10]
+                video_date = datetime.strptime(video_date_str, "%Y-%m-%d")
+                channel_title = playlist_item["snippet"]["channelTitle"]
                 
-                # Parse duration
-                duration_match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', content_details.get("duration", ""))
-                if duration_match:
-                    hours, minutes, seconds = duration_match.groups()
-                    duration_parts = []
-                    if hours: duration_parts.append(f"{hours}h")
-                    if minutes: duration_parts.append(f"{minutes}m")
-                    if seconds: duration_parts.append(f"{seconds}s")
-                    duration = " ".join(duration_parts)
+                # Check if video is within date range
+                if start_datetime and video_date < start_datetime:
+                    logger.info(f"Video '{video_title}' ({video_date_str}) is before start date ({start_date}), skipping")
+                    continue
+                    
+                if end_datetime and video_date >= end_datetime:
+                    logger.info(f"Video '{video_title}' ({video_date_str}) is after end date ({end_date}), skipping")
+                    continue
+                
+                logger.info(f"Processing video: {video_title} ({video_date_str})")
+                
+                # Get thumbnail
+                thumbnails = playlist_item["snippet"]["thumbnails"]
+                thumbnail_url = (
+                    thumbnails.get("high", {}).get("url") or
+                    thumbnails.get("medium", {}).get("url") or
+                    thumbnails.get("default", {}).get("url")
+                )
 
-            # Calculate engagement rate
-            engagement_rate = 0
-            if view_count > 0:
-                engagement_rate = ((like_count + comment_count) / view_count) * 100
-
-            # Fetch comments
-            comments_data = []
-            sentiment_scores = []
-            
-            try:
-                comments_response = youtube.commentThreads().list(
-                    part="snippet",
-                    videoId=video_id,
-                    maxResults=20,
-                    textFormat="plainText",
-                    order="relevance"
+                # Get video statistics
+                video_stats_response = youtube.videos().list(
+                    part="statistics,contentDetails", 
+                    id=video_id
                 ).execute()
+
+                view_count = 0
+                like_count = 0
+                comment_count = 0
+                duration = ""
                 
-                for item in comments_response.get("items", []):
-                    comment_text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-                    comment_likes = item["snippet"]["topLevelComment"]["snippet"].get("likeCount", 0)
+                if video_stats_response["items"]:
+                    stats = video_stats_response["items"][0]["statistics"]
+                    content_details = video_stats_response["items"][0]["contentDetails"]
                     
-                    sentiment_score = analyze_comment_sentiment(comment_text)
-                    sentiment_scores.append(sentiment_score)
+                    view_count = int(stats.get("viewCount", 0))
+                    like_count = int(stats.get("likeCount", 0))
+                    comment_count = int(stats.get("commentCount", 0))
                     
-                    comment_type = determine_comment_type(comment_text)
-                    comments_data.append({
-                        "text": comment_text,
-                        "type": comment_type,
-                        "likes": comment_likes,
-                        "sentiment_score": sentiment_score
-                    })
-            except HttpError as e:
-                if e.resp.status == 403:
-                    logger.warning(f"Comments disabled for video {video_id}: {video_title}")
-                else:
-                    logger.error(f"Error fetching comments for video {video_id}: {e}")
+                    # Parse duration
+                    duration_match = re.match(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', content_details.get("duration", ""))
+                    if duration_match:
+                        hours, minutes, seconds = duration_match.groups()
+                        duration_parts = []
+                        if hours: duration_parts.append(f"{hours}h")
+                        if minutes: duration_parts.append(f"{minutes}m")
+                        if seconds: duration_parts.append(f"{seconds}s")
+                        duration = " ".join(duration_parts)
 
-            # Calculate average sentiment
-            avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.5
+                # Calculate engagement rate
+                engagement_rate = 0
+                if view_count > 0:
+                    engagement_rate = ((like_count + comment_count) / view_count) * 100
 
-            posts.append({
-                "title": video_title,
-                "description": video_description[:200] + "..." if len(video_description) > 200 else video_description,
-                "channel": channel_title,
-                "comments": comments_data,
-                "date": video_date,
-                "published_at": datetime.strptime(video_date, "%Y-%m-%d"),
-                "duration": duration,
-                "view_count": view_count,
-                "like_count": like_count,
-                "comment_count": comment_count,
-                "engagement": like_count,
-                "engagement_rate": engagement_rate,
-                "sentiment_score": avg_sentiment,
-                "sentiment": get_sentiment_label(avg_sentiment),
-                "thumbnail": thumbnail_url,
-                "url": f"https://www.youtube.com/watch?v={video_id}",
-                "video_id": video_id
-            })
+                # Fetch comments
+                comments_data = []
+                sentiment_scores = []
+                
+                try:
+                    comments_response = youtube.commentThreads().list(
+                        part="snippet",
+                        videoId=video_id,
+                        maxResults=20,
+                        textFormat="plainText",
+                        order="relevance"
+                    ).execute()
+                    
+                    for item in comments_response.get("items", []):
+                        comment_text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+                        comment_likes = item["snippet"]["topLevelComment"]["snippet"].get("likeCount", 0)
+                        
+                        sentiment_score = analyze_comment_sentiment(comment_text)
+                        sentiment_scores.append(sentiment_score)
+                        
+                        comment_type = determine_comment_type(comment_text)
+                        comments_data.append({
+                            "text": comment_text,
+                            "type": comment_type,
+                            "likes": comment_likes,
+                            "sentiment_score": sentiment_score
+                        })
+                except HttpError as e:
+                    if e.resp.status == 403:
+                        logger.warning(f"Comments disabled for video {video_id}: {video_title}")
+                    else:
+                        logger.error(f"Error fetching comments for video {video_id}: {e}")
 
-        logger.info(f"Successfully processed {len(posts)} videos")
+                # Calculate average sentiment
+                avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.5
+
+                posts.append({
+                    "title": video_title,
+                    "description": video_description[:200] + "..." if len(video_description) > 200 else video_description,
+                    "channel": channel_title,
+                    "comments": comments_data,
+                    "date": video_date_str,
+                    "published_at": video_date,
+                    "duration": duration,
+                    "view_count": view_count,
+                    "like_count": like_count,
+                    "comment_count": comment_count,
+                    "engagement": like_count,
+                    "engagement_rate": engagement_rate,
+                    "sentiment_score": avg_sentiment,
+                    "sentiment": get_sentiment_label(avg_sentiment),
+                    "thumbnail": thumbnail_url,
+                    "url": f"https://www.youtube.com/watch?v={video_id}",
+                    "video_id": video_id
+                })
+                
+                # Break if we have enough videos
+                if len(posts) >= max_videos:
+                    break
+
+            # Check if there are more pages
+            page_token = playlist_response.get("nextPageToken")
+            if not page_token:
+                break
+
+        logger.info(f"Successfully processed {len(posts)} videos within date range {start_date} to {end_date}")
         return posts
 
     except HttpError as e:
@@ -709,29 +748,25 @@ def analyze():
         start = datetime.strptime(start_date_str, "%Y-%m-%d")
         end = datetime.strptime(end_date_str, "%Y-%m-%d")
 
-        posts = fetch_youtube_channel_videos(channel_url, max_videos)
+        # Pass date parameters to the fetch function
+        posts = fetch_youtube_channel_videos(channel_url, max_videos, start_date_str, end_date_str)
 
         if not posts:
             return render_template(
                 "youtube_dashboard.html",
                 user=session["user"],
-                error="Could not fetch videos from this channel. Please check the URL and try again.",
+                error="Could not fetch videos from this channel within the specified date range. Please check the URL and try a different date range.",
                 results=[],
             )
 
-        # Filter posts by date
-        filtered_posts = [
-            p for p in posts 
-            if start <= datetime.strptime(p["date"], "%Y-%m-%d") <= end
-        ]
-
-        analytics = get_analytics_summary(filtered_posts)
-        logger.info(f"Analyzed {len(filtered_posts)} posts for channel: {channel_url}")
+        # Posts are already filtered by date in the fetch function, no need to filter again
+        analytics = get_analytics_summary(posts)
+        logger.info(f"Analyzed {len(posts)} posts for channel: {channel_url} (date range: {start_date_str} to {end_date_str})")
 
         return render_template(
             "youtube_dashboard.html",
             user=session["user"],
-            results=filtered_posts,
+            results=posts,
             analytics=analytics,
             channel_url=channel_url,
             channel="youtube",
