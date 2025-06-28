@@ -242,7 +242,88 @@
                 
                 <form method="POST" action="/analyze" class="space-y-6" 
                       x-on:submit="isAnalyzing = true" 
-                      x-data="{ startDate: '', endDate: '' }">
+                      x-data="{ 
+                          startDate: '', 
+                          endDate: '',
+                          getDateRangeSummary() {
+                              if (!this.startDate || !this.endDate) return 'Select date range';
+                              
+                              const start = new Date(this.startDate);
+                              const end = new Date(this.endDate);
+                              
+                              if (start > end) return 'Invalid date range';
+                              
+                              const diffTime = Math.abs(end - start);
+                              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                              
+                              if (diffDays === 1) return '1 day analysis';
+                              if (diffDays <= 7) return `${diffDays} days analysis`;
+                              if (diffDays <= 30) return `${Math.round(diffDays/7)} weeks analysis`;
+                              if (diffDays <= 90) return `${Math.round(diffDays/30)} months analysis`;
+                              if (diffDays <= 365) return `${Math.round(diffDays/30)} months analysis`;
+                              return `${Math.round(diffDays/365)} year analysis`;
+                          },
+                          getFormattedDateRange() {
+                              if (!this.startDate || !this.endDate) return '';
+                              
+                              const start = new Date(this.startDate);
+                              const end = new Date(this.endDate);
+                              
+                              return start.toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                              }) + ' → ' + end.toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                              });
+                          },
+                          getDayCount() {
+                              if (!this.startDate || !this.endDate) return 0;
+                              
+                              const start = new Date(this.startDate);
+                              const end = new Date(this.endDate);
+                              const diffTime = Math.abs(end - start);
+                              return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                          },
+                          getTimelineProgress() {
+                              const days = this.getDayCount();
+                              if (days === 0) return 0;
+                              // Scale progress based on a max of 365 days (1 year)
+                              return Math.min(100, (days / 365) * 100);
+                          },
+                          formatDisplayDate(dateStr) {
+                              if (!dateStr) return '';
+                              const date = new Date(dateStr);
+                              return date.toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric' 
+                              });
+                          },
+                          setDateRange(period) {
+                              const end = new Date();
+                              const start = new Date();
+                              
+                              switch(period) {
+                                  case 'week':
+                                      start.setDate(start.getDate() - 7);
+                                      break;
+                                  case 'month':
+                                      start.setDate(start.getDate() - 30);
+                                      break;
+                                  case 'quarter':
+                                      start.setDate(start.getDate() - 90);
+                                      break;
+                                  case 'year':
+                                      start.setDate(start.getDate() - 365);
+                                      break;
+                              }
+                              
+                              this.startDate = start.toISOString().split('T')[0];
+                              this.endDate = end.toISOString().split('T')[0];
+                          }
+                      }">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <!-- Channel URL - Takes full width on mobile, half on desktop -->
                         <div class="lg:col-span-2 space-y-2">
@@ -264,6 +345,61 @@
                         <!-- Date Range Section -->
                         <div class="space-y-4">
                             <h3 class="text-sm font-medium text-muted-foreground uppercase tracking-wide">Analysis Period</h3>
+                            
+                            <!-- Date Range Visual Summary -->
+                            <div class="bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 border border-blue-500/20 rounded-lg p-4 mb-4" 
+                                 x-show="startDate && endDate" 
+                                 x-transition:enter="transition ease-out duration-300"
+                                 x-transition:enter-start="opacity-0 transform scale-95"
+                                 x-transition:enter-end="opacity-100 transform scale-100">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg">
+                                            <i data-lucide="calendar-range" class="h-5 w-5 text-white"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-semibold text-foreground" x-text="getDateRangeSummary()"></p>
+                                            <p class="text-xs text-muted-foreground" x-text="getFormattedDateRange()"></p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent" x-text="getDayCount()"></p>
+                                        <p class="text-xs text-muted-foreground">days</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Enhanced Visual Timeline -->
+                                <div class="space-y-2">
+                                    <div class="relative">
+                                        <div class="w-full h-3 bg-secondary/50 rounded-full overflow-hidden shadow-inner">
+                                            <div class="h-full bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 rounded-full transition-all duration-700 ease-out shadow-sm"
+                                                 x-bind:style="'width: ' + getTimelineProgress() + '%'"></div>
+                                        </div>
+                                        <!-- Timeline markers -->
+                                        <div class="absolute -top-1 left-0 w-2 h-2 bg-blue-400 rounded-full shadow-sm"></div>
+                                        <div class="absolute -top-1 bg-pink-400 rounded-full shadow-sm w-2 h-2 transition-all duration-700 ease-out"
+                                             x-bind:style="'right: ' + (100 - getTimelineProgress()) + '%'"></div>
+                                    </div>
+                                    
+                                    <!-- Date labels with icons -->
+                                    <div class="flex justify-between items-center text-xs">
+                                        <div class="flex items-center gap-1 text-blue-400">
+                                            <i data-lucide="play" class="h-3 w-3"></i>
+                                            <span x-text="formatDisplayDate(startDate)"></span>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-muted-foreground">
+                                            <i data-lucide="arrow-right" class="h-3 w-3"></i>
+                                            <span x-text="getDayCount() + ' days'"></span>
+                                            <i data-lucide="arrow-left" class="h-3 w-3"></i>
+                                        </div>
+                                        <div class="flex items-center gap-1 text-pink-400">
+                                            <span x-text="formatDisplayDate(endDate)"></span>
+                                            <i data-lucide="flag" class="h-3 w-3"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="grid grid-cols-2 gap-4">
                                 <!-- Start Date -->
                                 <div class="space-y-2">
@@ -289,6 +425,33 @@
                                                class="w-full pl-10 pr-4 py-3 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring transition-colors" 
                                                required>
                                     </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Date Presets -->
+                            <div class="pt-4 border-t border-border/50">
+                                <p class="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Quick Selection</p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button type="button" @click="setDateRange('week')" 
+                                            class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-blue-500/10 to-blue-600/10 hover:from-blue-500/20 hover:to-blue-600/20 border border-blue-500/20 hover:border-blue-500/30 text-blue-400 hover:text-blue-300 rounded-lg transition-all duration-200 hover:shadow-md hover:shadow-blue-500/10">
+                                        <i data-lucide="calendar-days" class="h-3 w-3 group-hover:scale-110 transition-transform"></i>
+                                        Last 7 days
+                                    </button>
+                                    <button type="button" @click="setDateRange('month')" 
+                                            class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-purple-500/10 to-purple-600/10 hover:from-purple-500/20 hover:to-purple-600/20 border border-purple-500/20 hover:border-purple-500/30 text-purple-400 hover:text-purple-300 rounded-lg transition-all duration-200 hover:shadow-md hover:shadow-purple-500/10">
+                                        <i data-lucide="calendar" class="h-3 w-3 group-hover:scale-110 transition-transform"></i>
+                                        Last 30 days
+                                    </button>
+                                    <button type="button" @click="setDateRange('quarter')" 
+                                            class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-pink-500/10 to-pink-600/10 hover:from-pink-500/20 hover:to-pink-600/20 border border-pink-500/20 hover:border-pink-500/30 text-pink-400 hover:text-pink-300 rounded-lg transition-all duration-200 hover:shadow-md hover:shadow-pink-500/10">
+                                        <i data-lucide="calendar-range" class="h-3 w-3 group-hover:scale-110 transition-transform"></i>
+                                        Last 3 months
+                                    </button>
+                                    <button type="button" @click="setDateRange('year')" 
+                                            class="group flex items-center gap-2 px-3 py-2 text-xs bg-gradient-to-r from-orange-500/10 to-orange-600/10 hover:from-orange-500/20 hover:to-orange-600/20 border border-orange-500/20 hover:border-orange-500/30 text-orange-400 hover:text-orange-300 rounded-lg transition-all duration-200 hover:shadow-md hover:shadow-orange-500/10">
+                                        <i data-lucide="calendar-clock" class="h-3 w-3 group-hover:scale-110 transition-transform"></i>
+                                        Last year
+                                    </button>
                                 </div>
                             </div>
                         </div>
