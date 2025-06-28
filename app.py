@@ -821,7 +821,7 @@ def report():
         logger.info(f"Generated report with {len(raw_data)} posts")
         
         return render_template(
-            "report_template.html",
+            "report_template_new.html",
             data=analytics_data,
             analytics=analytics_data,  # Pass as both data and analytics for template compatibility
             generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -930,16 +930,20 @@ def logout():
         session.clear()
         return redirect("/")
 
-@app.route("/health")
-def health_check():
-    """Health check endpoint."""
-    return jsonify({
-        "status": "healthy",
-        "version": "2.0.0",
-        "timestamp": datetime.utcnow().isoformat(),
-    })
+@app.errorhandler(404)
+def not_found_error(error):
+    """Handle 404 errors."""
+    logger.warning(f"404 error for path: {request.path}")
+    if request.path.startswith('/youtube.com/') or request.path.startswith('/www.youtube.com/'):
+        # Redirect malformed YouTube URLs to dashboard
+        return redirect("/dashboard")
+    return jsonify({"error": "Page not found", "status": 404}), 404
 
-# ===== ERROR HANDLERS =====
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors."""
+    logger.error(f"500 error: {error}")
+    return jsonify({"error": "Internal server error", "status": 500}), 500
 
 @app.errorhandler(Exception)
 def handle_exception(e):

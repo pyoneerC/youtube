@@ -313,41 +313,97 @@
 
         <!-- Insights -->
         <section class="insights-section">
-            <h2>Insights Clave</h2>
-            {% for insight in analytics.insights %}
-            <div class="insight-card {{ insight.tipo }}">
-                <div class="insight-header">
-                    <h3 class="insight-title">{{ insight.titulo }}</h3>
-                    <div class="trend-indicator {{ 'trend-up' if insight.tendencia > 0 else 'trend-down' }}">
-                        {{ "%.1f"|format(insight.tendencia)|abs }}%
-                        {% if insight.tendencia > 0 %}↑{% else %}↓{% endif %}
+            <h2>📈 Key Insights</h2>
+            {% if data.insights and data.insights|length > 0 %}
+                {% for insight in data.insights %}
+                <div class="insight-card {{ insight.type if insight.type else 'info' }}">
+                    <div class="insight-header">
+                        <h3 class="insight-title">{{ insight.title if insight.title else 'Insight' }}</h3>
                     </div>
+                    <p>{{ insight.message if insight.message else insight.description if insight.description else 'No description available' }}</p>
                 </div>
-                <p>{{ insight.descripcion }}</p>
-            </div>
-            {% endfor %}
+                {% endfor %}
+            {% else %}
+                <!-- Generate basic insights from data -->
+                {% set total_views = data.posts|sum(attribute='view_count') if data.posts else 0 %}
+                {% set total_likes = data.posts|sum(attribute='like_count') if data.posts else 0 %}
+                {% set avg_engagement = (data.posts|sum(attribute='engagement_rate') / data.posts|length) if data.posts else 0 %}
+                
+                <div class="insight-card success">
+                    <div class="insight-header">
+                        <h3 class="insight-title">Channel Performance</h3>
+                    </div>
+                    <p>This channel has generated {{ "{:,}".format(total_views) }} total views across {{ data.posts|length if data.posts else 0 }} analyzed videos with an average engagement rate of {{ "%.2f"|format(avg_engagement) }}%.</p>
+                </div>
+                
+                {% if avg_engagement > 5 %}
+                <div class="insight-card success">
+                    <div class="insight-header">
+                        <h3 class="insight-title">High Engagement</h3>
+                    </div>
+                    <p>The channel shows strong audience engagement with rates above industry average (5%). This indicates good content resonance with the audience.</p>
+                </div>
+                {% endif %}
+                
+                {% if data.posts and data.posts|length > 1 %}
+                {% set best_video = data.posts|max(attribute='engagement_rate') %}
+                <div class="insight-card info">
+                    <div class="insight-header">
+                        <h3 class="insight-title">Top Performing Content</h3>
+                    </div>
+                    <p>The video "{{ best_video.title[:50] }}..." achieved the highest engagement rate of {{ "%.2f"|format(best_video.engagement_rate) }}%.</p>
+                </div>
+                {% endif %}
+            {% endif %}
         </section>
 
         <!-- Top Performing Content -->
-        {% if analytics.top_content %}
+        {% if data.posts and data.posts|length > 0 %}
         <section class="chart-section">
-            <h2>Contenido Más Exitoso</h2>
+            <h2>🏆 Top Performing Videos</h2>
+            {% set top_videos = data.posts|sort(attribute='engagement_rate', reverse=true)[:3] %}
+            {% for video in top_videos %}
             <div class="post-card">
                 <div class="post-header">
-                    <h3 class="post-title">{{ analytics.top_content.title }}</h3>
-                    <span class="post-date">{{ analytics.top_content.date }}</span>
+                    <h3 class="post-title">{{ video.title }}</h3>
+                    <span class="post-date">{{ video.date }}</span>
                 </div>
-                <div class="metric-value">
-                    {{ analytics.top_content.engagement }}% Engagement
+                <div class="engagement-stats">
+                    <strong>{{ "%.2f"|format(video.engagement_rate) }}%</strong> Engagement Rate
                 </div>
-                {% if analytics.top_content.comments %}
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <div>
+                        <strong>{{ "{:,}".format(video.view_count) }}</strong><br>
+                        <small style="color: #9CA3AF;">Views</small>
+                    </div>
+                    <div>
+                        <strong>{{ "{:,}".format(video.like_count) }}</strong><br>
+                        <small style="color: #9CA3AF;">Likes</small>
+                    </div>
+                    <div>
+                        <strong>{{ video.comment_count }}</strong><br>
+                        <small style="color: #9CA3AF;">Comments</small>
+                    </div>
+                    <div>
+                        <strong>{{ video.duration }}</strong><br>
+                        <small style="color: #9CA3AF;">Duration</small>
+                    </div>
+                </div>
+                {% if video.comments and video.comments|length > 0 %}
                 <div class="comments-section">
-                    <h4>Comentarios Destacados</h4>
-                    {% for comment in analytics.top_content.comments[:3] %}
+                    <h4>Sample Comments</h4>
+                    {% for comment in video.comments[:3] %}
                     <div class="comment">
-                        <p class="comment-text">{{ comment.text }}</p>
+                        <p class="comment-text">{{ comment.text[:100] }}{% if comment.text|length > 100 %}...{% endif %}</p>
                         <span class="badge {{ comment.type }}">{{ comment.type|title }}</span>
                     </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
                     {% endfor %}
                 </div>
                 {% endif %}
@@ -357,8 +413,8 @@
 
         <!-- Posts Timeline -->
         <section class="posts-section">
-            <h2>Análisis de Posts</h2>
-            {% for post in analytics.posts %}
+            <h2>📹 Video Analysis</h2>
+            {% for post in data.posts %}
             <article class="post-card">
                 <div class="post-header">
                     <h3 class="post-title">{{ post.title }}</h3>
@@ -367,10 +423,9 @@
 
                 <div class="metrics-grid" style="margin: 1rem 0;">
                     <div class="metric-card">
-                        <h3>Engagement</h3>
-                        <div class="metric-value">{{ post.engagement }}%</div>
+                        <h3>Engagement Rate</h3>
+                        <div class="metric-value">{{ "%.2f"|format(post.engagement_rate) }}%</div>
                     </div>
-                    {% if post.views is defined %}
                     <div class="metric-card">
                         <h3>Visualizaciones</h3>
                         <div class="metric-value">{{ post.views }}</div>
@@ -398,41 +453,17 @@
             {% endfor %}
         </section>
 
-        <!-- Insights -->
-        {% if analytics.insights %}
-        <section>
-            <h2 class="text-xl font-semibold mb-4">Insights Principales</h2>
-            <div class="insights-container">
-                {% for insight in analytics.insights %}
-                <div class="insight-card {{ insight.tipo }}">
-                    <p>{{ insight.descripcion }}</p>
-                </div>
-                {% endfor %}
+        <!-- Summary Section -->
+        <section class="chart-section">
+            <h2>📊 Analysis Summary</h2>
+            <div class="post-card">
+                <h3>Report Generated</h3>
+                <p>This report was generated on {{ generated_at }} for {{ user }}.</p>
+                {% if data.posts %}
+                <p>Analysis includes {{ data.posts|length }} videos with comprehensive engagement and sentiment metrics.</p>
+                {% endif %}
             </div>
         </section>
-        {% endif %}
-
-        <!-- Engagement Trend -->
-        <section class="chart-container">
-            <h2 class="text-xl font-semibold mb-4">Tendencia de Engagement</h2>
-            <canvas id="engagementTrendChart"></canvas>
-        </section>
-        
-        <!-- Platform Distribution -->
-        <section>
-            <h2 class="text-xl font-semibold mb-4">Distribución por Plataforma</h2>
-            <div class="platform-stats">
-                {% for platform, count in analytics.summary.platforms.items() %}
-                <div class="platform-card">
-                    <h3 class="text-lg font-semibold">{{ platform|title }}</h3>
-                    <p class="text-3xl font-bold mt-2">{{ count }}</p>
-                    <p class="text-sm mt-1">Posts</p>
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-        
-        <!-- Sentiment Analysis -->
         <section class="chart-container">
             <h2 class="text-xl font-semibold mb-4">Análisis de Sentimiento</h2>
             <canvas id="sentimentChart"></canvas>
