@@ -1,5 +1,10 @@
 # Minimal Flask app requirements
 flask>=2.3.0
 requests>=2.28.0
-numpy
-googleapiclient
+numpy>=1.21.0
+google-api-python-client>=2.0.0
+google-auth>=2.0.0
+beautifulsoup4>=4.9.0
+google-api-python-client==2.108.0
+google-auth==2.23.4
+google-auth-httplib2==0.1.1
