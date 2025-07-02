@@ -1,3 +1,4 @@
 # Minimal Flask app requirements
 flask>=2.3.0
 requests>=2.28.0
+numpy
